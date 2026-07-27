@@ -1,0 +1,6 @@
+{
+  "name": "Despensa Virtual",
+  "description": "Gestión inteligente de alacena y nevera con control de caducidad, lista de compras automática, recetas con Gemini AI y escaneo por foto/cámara.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
