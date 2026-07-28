@@ -9,6 +9,7 @@ import com.example.data.remote.ProductLabelIngredientAnalysis
 import com.example.data.remote.RecipeSuggestion
 import com.example.data.remote.ScannedProduct
 import com.example.util.ConservationTips
+import com.example.util.GeminiResponseCache
 import com.example.util.GoogleDriveBackupManager
 import com.example.util.GoogleDriveBackupResult
 import com.example.util.NotificationHelper
@@ -30,10 +31,14 @@ class PantryRepository(
     private val shoppingListDao: ShoppingListDao,
     private val purchaseHistoryDao: PurchaseHistoryDao,
     private val appSettingsDao: AppSettingsDao,
+    geminiCacheDao: GeminiCacheDao? = null,
     private val geminiService: GeminiService = GeminiService(),
     private val openFoodFactsService: com.example.data.remote.OpenFoodFactsService = com.example.data.remote.OpenFoodFactsService(),
     private val alexaSyncManager: AlexaSyncManager = AlexaSyncManager(shoppingListDao)
 ) {
+    // Si no se pasa geminiCacheDao (código antiguo que aún no lo conoce), la caché queda
+    // deshabilitada y el repositorio funciona exactamente como antes, sin romper nada.
+    private val geminiCache: GeminiResponseCache? = geminiCacheDao?.let { GeminiResponseCache(it) }
 
     val allPantryItems: Flow<List<PantryItem>> = pantryDao.getAllPantryItems()
     val activeShoppingList: Flow<List<ShoppingListItem>> = shoppingListDao.getActiveShoppingList()
@@ -418,11 +423,17 @@ class PantryRepository(
     }
 
     suspend fun compareSupermarketPrices(productName: String): com.example.data.local.ProductSupermarketComparison {
-        return geminiService.compareSupermarketPrices(productName)
+        val cache = geminiCache
+        if (cache == null) return geminiService.compareSupermarketPrices(productName)
+        val key = "compareSupermarketPrices:${productName.trim().lowercase()}"
+        return cache.getOrFetch(key) { geminiService.compareSupermarketPrices(productName) }
     }
 
     suspend fun fetchProductPriceHistory(productName: String): com.example.data.local.ProductDetailPriceHistory {
-        return geminiService.fetchProductPriceHistory(productName)
+        val cache = geminiCache
+        if (cache == null) return geminiService.fetchProductPriceHistory(productName)
+        val key = "fetchProductPriceHistory:${productName.trim().lowercase()}"
+        return cache.getOrFetch(key) { geminiService.fetchProductPriceHistory(productName) }
     }
 
     suspend fun syncWithAlexa(settings: AppSettings? = null): AlexaSyncResult {

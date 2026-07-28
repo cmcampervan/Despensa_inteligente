@@ -25,7 +25,8 @@ class PantryViewModel(application: Application) : AndroidViewModel(application) 
         pantryDao = db.pantryDao(),
         shoppingListDao = db.shoppingListDao(),
         purchaseHistoryDao = db.purchaseHistoryDao(),
-        appSettingsDao = db.appSettingsDao()
+        appSettingsDao = db.appSettingsDao(),
+        geminiCacheDao = db.geminiCacheDao()
     )
 
     // Alexa Sync State

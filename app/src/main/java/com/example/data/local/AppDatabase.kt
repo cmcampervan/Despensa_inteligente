@@ -10,9 +10,10 @@ import androidx.room.RoomDatabase
         PantryItem::class,
         ShoppingListItem::class,
         PurchaseHistoryItem::class,
-        AppSettings::class
+        AppSettings::class,
+        GeminiCacheEntry::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -20,6 +21,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun shoppingListDao(): ShoppingListDao
     abstract fun purchaseHistoryDao(): PurchaseHistoryDao
     abstract fun appSettingsDao(): AppSettingsDao
+    abstract fun geminiCacheDao(): GeminiCacheDao
 
     companion object {
         @Volatile
