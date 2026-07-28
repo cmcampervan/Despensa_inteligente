@@ -67,6 +67,10 @@ class PantryViewModel(application: Application) : AndroidViewModel(application) 
     private val _selectedExpirationFilter = MutableStateFlow("TODOS") // TODOS, CADUCADOS, POR_CADUCAR, FRESCOS, SIN_STOCK
     val selectedExpirationFilter = _selectedExpirationFilter.asStateFlow()
 
+    // Unfiltered Inventory for Stats & Freshness Summary
+    val rawPantryItems: StateFlow<List<PantryItem>> = repository.allPantryItems
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // All Inventory
     val pantryItems: StateFlow<List<PantryItem>> = combine(
         repository.allPantryItems,

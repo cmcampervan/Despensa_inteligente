@@ -33,6 +33,7 @@ fun InventoryScreen(
     modifier: Modifier = Modifier
 ) {
     val items by viewModel.pantryItems.collectAsState()
+    val rawItems by viewModel.rawPantryItems.collectAsState()
     val expiringItems by viewModel.expiringItems.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedLocation by viewModel.selectedLocationFilter.collectAsState()
@@ -56,6 +57,7 @@ fun InventoryScreen(
     var showScanDialog by remember { mutableStateOf(false) }
     var showLabelScannerDialog by remember { mutableStateOf(false) }
     var showBarcodeScannerDialog by remember { mutableStateOf(false) }
+    var showFreshnessDetailDialog by remember { mutableStateOf(false) }
 
     val foodCategories = listOf("TODAS", "Lácteos", "Carnes y Pescados", "Frutas y Verduras", "Granos y Cereales", "Bebidas", "Enlatados", "Snacks", "Congelados", "Otros")
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
@@ -163,6 +165,14 @@ fun InventoryScreen(
                 expiringCount = expiringItems.size,
                 lowStockCount = lowStockCount,
                 totalValue = totalPantryValue
+            )
+
+            // Resumen Visual de Frescura (Código de colores: Verde / Amarillo / Rojo)
+            FreshnessSummaryCard(
+                items = rawItems,
+                selectedFilter = selectedExpirationFilter,
+                onSelectFilter = { filter -> viewModel.setExpirationFilter(filter) },
+                onOpenDetail = { showFreshnessDetailDialog = true }
             )
 
             // Glass Search Bar
@@ -569,6 +579,31 @@ fun InventoryScreen(
                         isPromo = p.isPromotion
                     )
                 }
+            }
+        )
+    }
+
+    if (showFreshnessDetailDialog) {
+        FreshnessDetailDialog(
+            items = rawItems,
+            onDismiss = { showFreshnessDetailDialog = false },
+            onAddItemsToShoppingList = { itemsToAdd ->
+                itemsToAdd.forEach { p ->
+                    viewModel.addShoppingItem(
+                        name = p.name,
+                        quantity = 1.0,
+                        unit = p.unit,
+                        location = p.locationCategory,
+                        foodCategory = p.foodCategory,
+                        supermarket = p.supermarket,
+                        price = p.price,
+                        isPromo = p.isPromotion
+                    )
+                }
+            },
+            onFilterSelect = { filter ->
+                viewModel.setExpirationFilter(filter)
+                showFreshnessDetailDialog = false
             }
         )
     }
