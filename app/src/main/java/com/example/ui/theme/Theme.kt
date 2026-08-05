@@ -14,11 +14,11 @@ import androidx.compose.ui.platform.LocalContext
 private val DarkColorScheme = darkColorScheme(
     primary = IndigoSecondary,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFF312E81),
+    primaryContainer = Color(0xFF134E4A),
     onPrimaryContainer = IndigoLight,
     secondary = IndigoPrimary,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFF1E293B),
+    secondaryContainer = Color(0xFF132B28),
     onSecondaryContainer = Color.White,
     tertiary = BlueFridge,
     background = DarkBackground,
@@ -26,7 +26,7 @@ private val DarkColorScheme = darkColorScheme(
     surface = DarkSurface,
     onSurface = Color.White,
     surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = Color(0xFFCBD5E1),
+    onSurfaceVariant = Color(0xFF99F6E4),
     outline = DarkGlassBorder
 )
 
@@ -34,10 +34,10 @@ private val LightColorScheme = lightColorScheme(
     primary = IndigoPrimary,
     onPrimary = Color.White,
     primaryContainer = IndigoContainer,
-    onPrimaryContainer = Color(0xFF1E1B4B),
+    onPrimaryContainer = Color(0xFF042F2C),
     secondary = IndigoSecondary,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFF1F5F9),
+    secondaryContainer = Color(0xFFE6F0EE),
     onSecondaryContainer = SlateTextPrimary,
     tertiary = BlueFridge,
     background = LightBackground,

@@ -9,7 +9,6 @@ import com.example.data.remote.ProductLabelIngredientAnalysis
 import com.example.data.remote.RecipeSuggestion
 import com.example.data.remote.ScannedProduct
 import com.example.util.ConservationTips
-import com.example.util.GeminiResponseCache
 import com.example.util.GoogleDriveBackupManager
 import com.example.util.GoogleDriveBackupResult
 import com.example.util.NotificationHelper
@@ -31,16 +30,10 @@ class PantryRepository(
     private val shoppingListDao: ShoppingListDao,
     private val purchaseHistoryDao: PurchaseHistoryDao,
     private val appSettingsDao: AppSettingsDao,
-    geminiCacheDao: GeminiCacheDao? = null,
-    mercadonaCacheDao: MercadonaCacheDao? = null,
     private val geminiService: GeminiService = GeminiService(),
     private val openFoodFactsService: com.example.data.remote.OpenFoodFactsService = com.example.data.remote.OpenFoodFactsService(),
-    private val alexaSyncManager: AlexaSyncManager = AlexaSyncManager(shoppingListDao),
-    private val mercadonaCatalogRepository: MercadonaCatalogRepository = MercadonaCatalogRepository(pantryDao, mercadonaCacheDao)
+    private val alexaSyncManager: AlexaSyncManager = AlexaSyncManager(shoppingListDao)
 ) {
-    // Si no se pasa geminiCacheDao (código antiguo que aún no lo conoce), la caché queda
-    // deshabilitada y el repositorio funciona exactamente como antes, sin romper nada.
-    private val geminiCache: GeminiResponseCache? = geminiCacheDao?.let { GeminiResponseCache(it) }
 
     val allPantryItems: Flow<List<PantryItem>> = pantryDao.getAllPantryItems()
     val activeShoppingList: Flow<List<ShoppingListItem>> = shoppingListDao.getActiveShoppingList()
@@ -78,6 +71,62 @@ class PantryRepository(
         val settings = getAppSettings()
         if (settings.autoAddToShoppingList && itemWithTip.quantity <= itemWithTip.minThreshold) {
             checkAndAddToShoppingListAuto(context, itemWithTip)
+        }
+    }
+
+    suspend fun seedDefaultPantryIfEmpty(context: Context) {
+        val count = pantryDao.getAllPantryItemsList().size
+        if (count == 0) {
+            val now = System.currentTimeMillis()
+            val sampleItems = listOf(
+                PantryItem(
+                    name = "Leche Entera",
+                    quantity = 2.0,
+                    unit = "L",
+                    locationCategory = "NEVERA",
+                    foodCategory = "Lácteos",
+                    expirationDateMillis = now + 6L * 24 * 3600 * 1000,
+                    supermarket = "Mercadona",
+                    price = 0.98,
+                    conservationTip = "Guardar en el refrigerador después de abrir."
+                ),
+                PantryItem(
+                    name = "Arroz Redondo",
+                    quantity = 1.0,
+                    unit = "kg",
+                    locationCategory = "ALACENA",
+                    foodCategory = "Granos y Cereales",
+                    expirationDateMillis = now + 180L * 24 * 3600 * 1000,
+                    supermarket = "Mercadona",
+                    price = 1.35,
+                    conservationTip = "Conservar en lugar fresco y seco."
+                ),
+                PantryItem(
+                    name = "Aceite de Oliva",
+                    quantity = 1.0,
+                    unit = "L",
+                    locationCategory = "ALACENA",
+                    foodCategory = "Otros",
+                    expirationDateMillis = now + 120L * 24 * 3600 * 1000,
+                    supermarket = "Carrefour",
+                    price = 6.50,
+                    conservationTip = "Proteger de la luz directa y el calor."
+                ),
+                PantryItem(
+                    name = "Huevos Frescos",
+                    quantity = 12.0,
+                    unit = "ud",
+                    locationCategory = "NEVERA",
+                    foodCategory = "Otros",
+                    expirationDateMillis = now + 14L * 24 * 3600 * 1000,
+                    supermarket = "Lidl",
+                    price = 2.40,
+                    conservationTip = "Mantener en la puerta del refrigerador."
+                )
+            )
+            for (item in sampleItems) {
+                pantryDao.insertPantryItem(item)
+            }
         }
     }
 
@@ -158,18 +207,6 @@ class PantryRepository(
             val reason = if (newMissing) "Marcado Manual" else ""
             shoppingListDao.updateShoppingListItem(item.copy(isMissing = newMissing, missingReason = reason))
         }
-    }
-
-    /**
-     * Cambia la cantidad a comprar de un producto de la lista (por ejemplo con los
-     * botones +/- de la tarjeta). La cantidad nunca baja de 0.5 desde aquí; si el
-     * usuario quiere quitar el producto del todo, usa el botón de eliminar.
-     */
-    suspend fun updateShoppingItemQuantity(itemId: Int, newQuantity: Double) {
-        val activeList = shoppingListDao.getAllActiveShoppingListOnce()
-        val item = activeList.find { it.id == itemId } ?: return
-        val clamped = newQuantity.coerceAtLeast(0.5)
-        shoppingListDao.updateShoppingListItem(item.copy(quantityToBuy = clamped))
     }
 
     suspend fun checkAndAddToShoppingListAuto(context: Context, item: PantryItem) {
@@ -389,14 +426,15 @@ class PantryRepository(
             if (cleanName.isNotBlank()) {
                 val duplicate = shoppingListDao.findDuplicateInShoppingList(cleanName)
                 if (duplicate == null) {
+                    val realRef = com.example.data.remote.SpanishMarketPriceDatabase.lookupRealPrice(cleanName, "Mercadona")
                     shoppingListDao.insertShoppingListItem(
                         ShoppingListItem(
                             name = cleanName,
-                            quantityToBuy = 1.0,
-                            unit = "ud",
-                            locationCategory = "Alacena",
-                            foodCategory = "Otros",
-                            estimatedPrice = 1.5,
+                            quantityToBuy = realRef.quantity,
+                            unit = realRef.unit,
+                            locationCategory = realRef.category,
+                            foodCategory = realRef.foodCategory,
+                            estimatedPrice = realRef.estimatedPrice,
                             isMissing = true,
                             missingReason = "Receta Gemini"
                         )
@@ -436,28 +474,12 @@ class PantryRepository(
         return geminiService.fetchOnlinePriceData(productName, supermarket)
     }
 
-    /** Precio real de Mercadona (no estimado por Gemini) para un producto, por nombre y/o código de barras. */
-    suspend fun getMercadonaPrice(productName: String, barcode: String? = null): com.example.data.remote.MercadonaProductPrice? {
-        return mercadonaCatalogRepository.getPrice(productName, barcode)
-    }
-
-    /** Recorre todo el inventario actual y actualiza los precios con datos reales de Mercadona. */
-    suspend fun refreshMercadonaCatalog(): MercadonaCatalogRefreshResult {
-        return mercadonaCatalogRepository.refreshFullCatalog()
-    }
-
     suspend fun compareSupermarketPrices(productName: String): com.example.data.local.ProductSupermarketComparison {
-        val cache = geminiCache
-        if (cache == null) return geminiService.compareSupermarketPrices(productName)
-        val key = "compareSupermarketPrices:${productName.trim().lowercase()}"
-        return cache.getOrFetch(key) { geminiService.compareSupermarketPrices(productName) }
+        return geminiService.compareSupermarketPrices(productName)
     }
 
     suspend fun fetchProductPriceHistory(productName: String): com.example.data.local.ProductDetailPriceHistory {
-        val cache = geminiCache
-        if (cache == null) return geminiService.fetchProductPriceHistory(productName)
-        val key = "fetchProductPriceHistory:${productName.trim().lowercase()}"
-        return cache.getOrFetch(key) { geminiService.fetchProductPriceHistory(productName) }
+        return geminiService.fetchProductPriceHistory(productName)
     }
 
     suspend fun syncWithAlexa(settings: AppSettings? = null): AlexaSyncResult {

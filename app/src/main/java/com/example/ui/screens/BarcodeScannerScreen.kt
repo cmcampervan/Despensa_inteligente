@@ -262,6 +262,7 @@ fun BarcodeScannerScreen(
 
                     val analyzer = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
                         .build().also { imageAnalysis ->
                             imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
                                 if (detectedCode == null && !isLoadingProduct) {

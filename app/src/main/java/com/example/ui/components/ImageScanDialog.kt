@@ -10,12 +10,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,14 +21,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.data.remote.ScannedProduct
+import com.example.ui.theme.IndigoPrimary
+
+data class EditableScannedProduct(
+    var name: String,
+    var priceText: String,
+    var supermarket: String,
+    var isPromotion: Boolean,
+    var category: String,
+    var foodCategory: String,
+    var conservationTip: String
+)
 
 @Composable
 fun ImageScanDialog(
     isAnalyzing: Boolean,
     scannedResults: List<ScannedProduct>,
-    errorMessage: String? = null,
     onDismiss: () -> Unit,
     onImageSelected: (Bitmap) -> Unit,
     onAddProductsToInventory: (List<ScannedProduct>) -> Unit,
@@ -38,6 +48,28 @@ fun ImageScanDialog(
 ) {
     val context = LocalContext.current
     var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    // Maintain an editable list for user validation before submitting to form/list
+    val editableList = remember { mutableStateListOf<EditableScannedProduct>() }
+
+    LaunchedEffect(scannedResults) {
+        if (scannedResults.isNotEmpty()) {
+            editableList.clear()
+            scannedResults.forEach { item ->
+                editableList.add(
+                    EditableScannedProduct(
+                        name = item.name,
+                        priceText = if (item.estimatedPrice > 0) String.format(java.util.Locale.US, "%.2f", item.estimatedPrice) else "1.50",
+                        supermarket = item.supermarket.ifBlank { "General" },
+                        isPromotion = item.isPromotion,
+                        category = item.category,
+                        foodCategory = item.foodCategory,
+                        conservationTip = item.conservationTip
+                    )
+                )
+            }
+        }
+    }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -68,7 +100,7 @@ fun ImageScanDialog(
     if (showCameraXScanner) {
         CameraXProductScannerDialog(
             onDismiss = { showCameraXScanner = false },
-            onPhotoCaptured = { bitmap, mlResult ->
+            onPhotoCaptured = { bitmap, _ ->
                 selectedBitmap = bitmap
                 showCameraXScanner = false
                 onImageSelected(bitmap)
@@ -80,8 +112,8 @@ fun ImageScanDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text("Escanear Foto con Gemini AI")
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = IndigoPrimary)
+                Text("Escanear Folleto / Foto con Gemini AI")
             }
         },
         text = {
@@ -93,13 +125,13 @@ fun ImageScanDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    "Saca una foto o sube una imagen de un producto, recibo/ticket de compra o folleto en oferta:",
+                    "Fotografía o sube la imagen de un folleto de ofertas, recibo o producto. Gemini AI extraerá los pares Nombre-Precio para tu lista:",
                     style = MaterialTheme.typography.bodyMedium
                 )
 
                 Button(
                     onClick = { showCameraXScanner = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = com.example.ui.theme.IndigoPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary),
                     modifier = Modifier.fillMaxWidth().testTag("open_camerax_scanner_button")
                 ) {
                     Icon(Icons.Default.CameraAlt, contentDescription = null)
@@ -128,91 +160,220 @@ fun ImageScanDialog(
                 }
 
                 selectedBitmap?.let { bmp ->
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = "Foto elegida",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp)
-                    )
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Image(
+                                bitmap = bmp.asImageBitmap(),
+                                contentDescription = "Foto o folleto elegido",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(130.dp)
+                            )
+
+                            Button(
+                                onClick = { onImageSelected(bmp) },
+                                enabled = !isAnalyzing,
+                                colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("send_image_gemini_button")
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (isAnalyzing) "Analizando folleto..." else "✨ Extraer Pares Nombre-Precio")
+                            }
+                        }
+                    }
                 }
 
                 if (isAnalyzing) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(vertical = 8.dp)
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        Text("Analizando imagen con Gemini AI...", style = MaterialTheme.typography.bodySmall)
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Text("Procesando pares 'Nombre-Precio' con Gemini AI...", style = MaterialTheme.typography.bodySmall, color = IndigoPrimary)
                     }
                 }
 
-                errorMessage?.let { msg ->
+                if (editableList.isNotEmpty()) {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                        modifier = Modifier.fillMaxWidth().testTag("scan_error_message")
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = msg,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.padding(10.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = IndigoPrimary)
+                            Text(
+                                "${editableList.size} par(es) extraído(s). Revisa y ajusta antes de agregar:",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = IndigoPrimary
+                            )
+                        }
                     }
-                }
-
-                if (scannedResults.isNotEmpty()) {
-                    Text(
-                        "Productos Detectados (${scannedResults.size}):",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
 
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 200.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                            .heightIn(max = 240.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(scannedResults) { prod ->
+                        itemsIndexed(editableList) { index, item ->
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Column(modifier = Modifier.padding(8.dp)) {
-                                    Text(prod.name, style = MaterialTheme.typography.bodyLarge)
-                                    Text("Ubicación: ${prod.category} | Cat: ${prod.foodCategory}", style = MaterialTheme.typography.bodySmall)
-                                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                        Text("Precio: ${prod.estimatedPrice}€", style = MaterialTheme.typography.bodySmall)
-                                        if (prod.isPromotion) {
-                                            Text("¡EN PROMOCIÓN!", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                Column(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            "Producto #${index + 1}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = IndigoPrimary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        IconButton(
+                                            onClick = { editableList.removeAt(index) },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = "Eliminar",
+                                                tint = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(18.dp)
+                                            )
                                         }
+                                    }
+
+                                    OutlinedTextField(
+                                        value = item.name,
+                                        onValueChange = { editableList[index] = item.copy(name = it) },
+                                        label = { Text("Nombre del Producto") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        OutlinedTextField(
+                                            value = item.priceText,
+                                            onValueChange = { editableList[index] = item.copy(priceText = it) },
+                                            label = { Text("Precio (€)") },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        OutlinedTextField(
+                                            value = item.supermarket,
+                                            onValueChange = { editableList[index] = item.copy(supermarket = it) },
+                                            label = { Text("Supermercado") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Checkbox(
+                                                checked = item.isPromotion,
+                                                onCheckedChange = { editableList[index] = item.copy(isPromotion = it) }
+                                            )
+                                            Text("🏷️ Oferta / Promoción", style = MaterialTheme.typography.bodySmall)
+                                        }
+
+                                        Text(
+                                            "Cat: ${item.foodCategory}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 }
                             }
                         }
                     }
 
+                    TextButton(
+                        onClick = {
+                            editableList.add(
+                                EditableScannedProduct(
+                                    name = "Nuevo Producto",
+                                    priceText = "1.00",
+                                    supermarket = "General",
+                                    isPromotion = true,
+                                    category = "Alacena",
+                                    foodCategory = "Otros",
+                                    conservationTip = ""
+                                )
+                            )
+                        },
+                        modifier = Modifier.align(Alignment.Start)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Añadir Par Nombre-Precio Manual", style = MaterialTheme.typography.labelMedium)
+                    }
+
+                    val validatedProducts = editableList.map {
+                        ScannedProduct(
+                            name = it.name.trim().ifBlank { "Producto" },
+                            category = it.category,
+                            foodCategory = it.foodCategory,
+                            estimatedPrice = it.priceText.replace(',', '.').toDoubleOrNull() ?: 1.0,
+                            isPromotion = it.isPromotion,
+                            supermarket = it.supermarket.trim().ifBlank { "General" },
+                            conservationTip = it.conservationTip
+                        )
+                    }
+
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = {
-                                onAddProductsToInventory(scannedResults)
+                                onAddProductsToShoppingList(validatedProducts)
                                 onDismiss()
                             },
-                            modifier = Modifier.weight(1f)
+                            colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary),
+                            modifier = Modifier.weight(1f).testTag("confirm_add_shopping_list_button")
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null)
-                            Text("A Inventario")
+                            Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("A Lista Compra")
                         }
 
                         OutlinedButton(
                             onClick = {
-                                onAddProductsToShoppingList(scannedResults)
+                                onAddProductsToInventory(validatedProducts)
                                 onDismiss()
                             },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("A Lista Compra")
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("A Inventario")
                         }
                     }
                 }

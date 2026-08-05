@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.data.local.PurchaseHistoryItem
+import com.example.ui.components.ExpenseBarChartComponent
 import com.example.ui.theme.IndigoPrimary
 import com.example.ui.viewmodel.PantryViewModel
 import java.text.SimpleDateFormat
@@ -50,6 +51,9 @@ fun PurchaseHistoryScreen(
     ) {
         // User Expense Calculation Analytics Breakdown Card
         UserExpenseAnalyticsCard(history = history, monthlyBudget = appSettings.monthlyBudget)
+
+        // Weekly & Monthly Bar Chart Financial Component
+        ExpenseBarChartComponent(history = history)
 
         // Summary Header Bar & Actions
         Card(

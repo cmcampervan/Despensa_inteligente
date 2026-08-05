@@ -45,7 +45,6 @@ fun ShoppingListScreen(
     val shoppingList by viewModel.shoppingList.collectAsState()
     val duplicateMessage by viewModel.duplicateMessage.collectAsState()
     val isAnalyzingImage by viewModel.isAnalyzingImage.collectAsState()
-    val scanErrorMessage by viewModel.scanErrorMessage.collectAsState()
     val scannedProducts by viewModel.scannedProducts.collectAsState()
     val isAlexaSyncing by viewModel.isAlexaSyncing.collectAsState()
     val alexaSyncResult by viewModel.alexaSyncResult.collectAsState()
@@ -466,9 +465,6 @@ fun ShoppingListScreen(
                                 historyInitialProduct = item.name
                                 showPriceHistoryDialog = true
                             },
-                            onQuantityChange = { newQuantity ->
-                                viewModel.updateShoppingItemQuantity(item.id, newQuantity)
-                            },
                             onDelete = { viewModel.deleteShoppingItem(item.id) }
                         )
                     }
@@ -643,7 +639,6 @@ fun ShoppingListScreen(
         ImageScanDialog(
             isAnalyzing = isAnalyzingImage,
             scannedResults = scannedProducts,
-            errorMessage = scanErrorMessage,
             onDismiss = {
                 viewModel.clearScannedProducts()
                 showScanDialog = false
@@ -769,14 +764,6 @@ fun ShoppingListScreen(
     }
 }
 
-private fun formatQuantity(quantity: Double): String {
-    return if (quantity == quantity.toLong().toDouble()) {
-        quantity.toLong().toString()
-    } else {
-        String.format(Locale.US, "%.1f", quantity)
-    }
-}
-
 @Composable
 fun ShoppingListItemCard(
     item: ShoppingListItem,
@@ -784,7 +771,6 @@ fun ShoppingListItemCard(
     onToggleMissing: () -> Unit,
     onComparePrice: () -> Unit = {},
     onViewHistory: () -> Unit = {},
-    onQuantityChange: (Double) -> Unit = {},
     onDelete: () -> Unit
 ) {
     Card(
@@ -842,34 +828,11 @@ fun ShoppingListItemCard(
                         )
                     }
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    val step = if (item.unit.equals("ud", ignoreCase = true)) 1.0 else 0.5
-                    IconButton(
-                        onClick = { onQuantityChange(item.quantityToBuy - step) },
-                        modifier = Modifier.size(28.dp).testTag("decrease_quantity_${item.id}")
-                    ) {
-                        Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Reducir cantidad", tint = IndigoPrimary)
-                    }
-                    Text(
-                        text = "${formatQuantity(item.quantityToBuy)} ${item.unit}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    IconButton(
-                        onClick = { onQuantityChange(item.quantityToBuy + step) },
-                        modifier = Modifier.size(28.dp).testTag("increase_quantity_${item.id}")
-                    ) {
-                        Icon(Icons.Default.AddCircleOutline, contentDescription = "Aumentar cantidad", tint = IndigoPrimary)
-                    }
-                    Text(
-                        text = "| Supermercado: ${item.supermarket}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = "Cantidad: ${item.quantityToBuy} ${item.unit} | Supermercado: ${item.supermarket}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 if (item.estimatedPrice > 0) {
                     Text(
                         text = "Precio aprox: ${String.format(Locale.US, "%.2f", item.estimatedPrice * item.quantityToBuy)}€",
