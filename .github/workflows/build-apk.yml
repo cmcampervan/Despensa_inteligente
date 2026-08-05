@@ -45,12 +45,18 @@ jobs:
             | grep -A 1 "SHA1:"
 
       - name: Crear .env con la clave de Gemini
-        run: echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+        run: |
+          if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
+            echo "AVISO: el secreto GEMINI_API_KEY no está configurado o está vacío. Usando un valor de relleno (la app compilará pero las llamadas a Gemini no funcionarán en runtime)."
+            echo "GEMINI_API_KEY=PLACEHOLDER_KEY" > .env
+          else
+            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+          fi
 
       - name: Compilar APK de debug (sin gradlew, usando Gradle directo)
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.11"
+          gradle-version: "9.3.1"
 
       - name: Ejecutar assembleDebug
         run: gradle assembleDebug --no-daemon
