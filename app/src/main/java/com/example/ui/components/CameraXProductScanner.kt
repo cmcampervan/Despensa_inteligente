@@ -26,7 +26,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -88,7 +87,6 @@ class MLProductProcessor {
     private val barcodeScanner: BarcodeScanner by lazy {
         val options = BarcodeScannerOptions.Builder()
             .setBarcodeFormats(
-                Barcode.FORMAT_ALL_FORMATS,
                 Barcode.FORMAT_EAN_13,
                 Barcode.FORMAT_EAN_8,
                 Barcode.FORMAT_UPC_A,
@@ -121,14 +119,8 @@ class MLProductProcessor {
                         Barcode.FORMAT_EAN_13 -> "EAN-13"
                         Barcode.FORMAT_EAN_8 -> "EAN-8"
                         Barcode.FORMAT_UPC_A -> "UPC-A"
-                        Barcode.FORMAT_UPC_E -> "UPC-E"
                         Barcode.FORMAT_CODE_128 -> "CODE-128"
-                        Barcode.FORMAT_CODE_39 -> "CODE-39"
-                        Barcode.FORMAT_CODE_93 -> "CODE-93"
-                        Barcode.FORMAT_CODABAR -> "CODABAR"
-                        Barcode.FORMAT_ITF -> "ITF"
                         Barcode.FORMAT_QR_CODE -> "QR"
-                        Barcode.FORMAT_DATA_MATRIX -> "Data Matrix"
                         else -> "Código de Barras"
                     }
                     onResult(
@@ -354,12 +346,6 @@ fun CameraXProductScannerDialog(
     }
 }
 
-enum class CameraOverlayMode(val label: String, val hint: String) {
-    BARCODE("Código Barras", "Alinea las barras con la línea láser horizontal"),
-    BROCHURE_TEXT("Folleto / Texto", "Centra el par nombre-precio en la cuadrícula 3x3"),
-    FULL_PRODUCT("Producto Completo", "Encuadra el producto en el objetivo central")
-}
-
 @Composable
 fun CameraXCaptureView(
     onDismiss: () -> Unit,
@@ -372,7 +358,6 @@ fun CameraXCaptureView(
 
     var lensFacing by remember { mutableStateOf(CameraSelector.LENS_FACING_BACK) }
     var flashMode by remember { mutableStateOf(ImageCapture.FLASH_MODE_OFF) }
-    var selectedOverlayMode by remember { mutableStateOf(CameraOverlayMode.BARCODE) }
 
     var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
     var previewView: PreviewView? by remember { mutableStateOf(null) }
@@ -446,7 +431,6 @@ fun CameraXCaptureView(
 
                     val analyzer = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
                         .build().also { imageAnalysis ->
                             imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
                                 mlProcessor.analyzeFrame(imageProxy) { result ->
@@ -478,26 +462,17 @@ fun CameraXCaptureView(
                 }
             }
 
-            val isBarcodeDetected = liveMLResult?.barcodeOrOcrText != null
-            val reticleColor = if (isBarcodeDetected) Color(0xFF10B981) else IndigoPrimary
-
-            // High-Tech Scanner Framing Overlay with Dynamic Alignment Guides
+            // High-Tech Scanner Framing Overlay
             Canvas(modifier = Modifier.fillMaxSize()) {
-                val boxWidth = when (selectedOverlayMode) {
-                    CameraOverlayMode.BARCODE -> size.width * 0.88f
-                    CameraOverlayMode.BROCHURE_TEXT -> size.width * 0.85f
-                    CameraOverlayMode.FULL_PRODUCT -> size.width * 0.78f
-                }
-                val boxHeight = when (selectedOverlayMode) {
-                    CameraOverlayMode.BARCODE -> size.height * 0.22f
-                    CameraOverlayMode.BROCHURE_TEXT -> size.height * 0.50f
-                    CameraOverlayMode.FULL_PRODUCT -> size.height * 0.60f
-                }
+                val boxWidth = size.width * 0.75f
+                val boxHeight = size.height * 0.45f
                 val left = (size.width - boxWidth) / 2
-                val top = (size.height - boxHeight) / 2.3f
+                val top = (size.height - boxHeight) / 2.2f
+
+                val rect = RectF(left, top, left + boxWidth, top + boxHeight)
 
                 // Dark translucent mask outside reticle
-                drawRect(Color.Black.copy(alpha = 0.55f))
+                drawRect(Color.Black.copy(alpha = 0.5f))
 
                 // Clear center box
                 drawRect(
@@ -510,130 +485,28 @@ fun CameraXCaptureView(
                 // Corner Reticles
                 val lineLength = 40.dp.toPx()
                 val stroke = 4.dp.toPx()
+                val color = IndigoPrimary
 
                 // Top Left
-                drawLine(reticleColor, androidx.compose.ui.geometry.Offset(left, top), androidx.compose.ui.geometry.Offset(left + lineLength, top), strokeWidth = stroke)
-                drawLine(reticleColor, androidx.compose.ui.geometry.Offset(left, top), androidx.compose.ui.geometry.Offset(left, top + lineLength), strokeWidth = stroke)
+                drawLine(color, androidx.compose.ui.geometry.Offset(left, top), androidx.compose.ui.geometry.Offset(left + lineLength, top), strokeWidth = stroke)
+                drawLine(color, androidx.compose.ui.geometry.Offset(left, top), androidx.compose.ui.geometry.Offset(left, top + lineLength), strokeWidth = stroke)
 
                 // Top Right
-                drawLine(reticleColor, androidx.compose.ui.geometry.Offset(left + boxWidth, top), androidx.compose.ui.geometry.Offset(left + boxWidth - lineLength, top), strokeWidth = stroke)
-                drawLine(reticleColor, androidx.compose.ui.geometry.Offset(left + boxWidth, top), androidx.compose.ui.geometry.Offset(left + boxWidth, top + lineLength), strokeWidth = stroke)
+                drawLine(color, androidx.compose.ui.geometry.Offset(left + boxWidth, top), androidx.compose.ui.geometry.Offset(left + boxWidth - lineLength, top), strokeWidth = stroke)
+                drawLine(color, androidx.compose.ui.geometry.Offset(left + boxWidth, top), androidx.compose.ui.geometry.Offset(left + boxWidth, top + lineLength), strokeWidth = stroke)
 
                 // Bottom Left
-                drawLine(reticleColor, androidx.compose.ui.geometry.Offset(left, top + boxHeight), androidx.compose.ui.geometry.Offset(left + lineLength, top + boxHeight), strokeWidth = stroke)
-                drawLine(reticleColor, androidx.compose.ui.geometry.Offset(left, top + boxHeight), androidx.compose.ui.geometry.Offset(left, top + boxHeight - lineLength), strokeWidth = stroke)
+                drawLine(color, androidx.compose.ui.geometry.Offset(left, top + boxHeight), androidx.compose.ui.geometry.Offset(left + lineLength, top + boxHeight), strokeWidth = stroke)
+                drawLine(color, androidx.compose.ui.geometry.Offset(left, top + boxHeight), androidx.compose.ui.geometry.Offset(left, top + boxHeight - lineLength), strokeWidth = stroke)
 
                 // Bottom Right
-                drawLine(reticleColor, androidx.compose.ui.geometry.Offset(left + boxWidth, top + boxHeight), androidx.compose.ui.geometry.Offset(left + boxWidth - lineLength, top + boxHeight), strokeWidth = stroke)
-                drawLine(reticleColor, androidx.compose.ui.geometry.Offset(left + boxWidth, top + boxHeight), androidx.compose.ui.geometry.Offset(left + boxWidth, top + boxHeight - lineLength), strokeWidth = stroke)
+                drawLine(color, androidx.compose.ui.geometry.Offset(left + boxWidth, top + boxHeight), androidx.compose.ui.geometry.Offset(left + boxWidth - lineLength, top + boxHeight), strokeWidth = stroke)
+                drawLine(color, androidx.compose.ui.geometry.Offset(left + boxWidth, top + boxHeight), androidx.compose.ui.geometry.Offset(left + boxWidth, top + boxHeight - lineLength), strokeWidth = stroke)
 
-                // Mode-Specific Alignment Guides
-                when (selectedOverlayMode) {
-                    CameraOverlayMode.BARCODE -> {
-                        // Center Barcode Laser Line
-                        val centerY = top + (boxHeight / 2f)
-                        val laserColor = if (isBarcodeDetected) Color(0xFF10B981) else Color(0xFFEF4444)
-                        drawLine(
-                            color = laserColor,
-                            start = androidx.compose.ui.geometry.Offset(left, centerY),
-                            end = androidx.compose.ui.geometry.Offset(left + boxWidth, centerY),
-                            strokeWidth = 3.dp.toPx()
-                        )
-
-                        // Barcode Teeth Alignment Ticks at Top and Bottom
-                        val tickCount = 12
-                        val stepX = boxWidth / (tickCount + 1)
-                        for (i in 1..tickCount) {
-                            val xPos = left + (stepX * i)
-                            // Top tick
-                            drawLine(
-                                color = reticleColor.copy(alpha = 0.6f),
-                                start = androidx.compose.ui.geometry.Offset(xPos, top),
-                                end = androidx.compose.ui.geometry.Offset(xPos, top + 10.dp.toPx()),
-                                strokeWidth = 2.dp.toPx()
-                            )
-                            // Bottom tick
-                            drawLine(
-                                color = reticleColor.copy(alpha = 0.6f),
-                                start = androidx.compose.ui.geometry.Offset(xPos, top + boxHeight),
-                                end = androidx.compose.ui.geometry.Offset(xPos, top + boxHeight - 10.dp.toPx()),
-                                strokeWidth = 2.dp.toPx()
-                            )
-                        }
-                    }
-
-                    CameraOverlayMode.BROCHURE_TEXT -> {
-                        // Rule-of-Thirds 3x3 Grid
-                        val dashEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f), 0f)
-                        val stepX = boxWidth / 3f
-                        val stepY = boxHeight / 3f
-
-                        // Vertical Grid Lines
-                        drawLine(
-                            color = Color.White.copy(alpha = 0.4f),
-                            start = androidx.compose.ui.geometry.Offset(left + stepX, top),
-                            end = androidx.compose.ui.geometry.Offset(left + stepX, top + boxHeight),
-                            strokeWidth = 1.dp.toPx(),
-                            pathEffect = dashEffect
-                        )
-                        drawLine(
-                            color = Color.White.copy(alpha = 0.4f),
-                            start = androidx.compose.ui.geometry.Offset(left + (stepX * 2), top),
-                            end = androidx.compose.ui.geometry.Offset(left + (stepX * 2), top + boxHeight),
-                            strokeWidth = 1.dp.toPx(),
-                            pathEffect = dashEffect
-                        )
-
-                        // Horizontal Grid Lines
-                        drawLine(
-                            color = Color.White.copy(alpha = 0.4f),
-                            start = androidx.compose.ui.geometry.Offset(left, top + stepY),
-                            end = androidx.compose.ui.geometry.Offset(left + boxWidth, top + stepY),
-                            strokeWidth = 1.dp.toPx(),
-                            pathEffect = dashEffect
-                        )
-                        drawLine(
-                            color = Color.White.copy(alpha = 0.4f),
-                            start = androidx.compose.ui.geometry.Offset(left, top + (stepY * 2)),
-                            end = androidx.compose.ui.geometry.Offset(left + boxWidth, top + (stepY * 2)),
-                            strokeWidth = 1.dp.toPx(),
-                            pathEffect = dashEffect
-                        )
-                    }
-
-                    CameraOverlayMode.FULL_PRODUCT -> {
-                        // Center Crosshair (+)
-                        val centerX = left + (boxWidth / 2f)
-                        val centerY = top + (boxHeight / 2f)
-                        val crosshairSize = 20.dp.toPx()
-
-                        drawLine(
-                            color = reticleColor.copy(alpha = 0.8f),
-                            start = androidx.compose.ui.geometry.Offset(centerX - crosshairSize, centerY),
-                            end = androidx.compose.ui.geometry.Offset(centerX + crosshairSize, centerY),
-                            strokeWidth = 2.dp.toPx()
-                        )
-                        drawLine(
-                            color = reticleColor.copy(alpha = 0.8f),
-                            start = androidx.compose.ui.geometry.Offset(centerX, centerY - crosshairSize),
-                            end = androidx.compose.ui.geometry.Offset(centerX, centerY + crosshairSize),
-                            strokeWidth = 2.dp.toPx()
-                        )
-
-                        // Center Target Ring
-                        drawCircle(
-                            color = reticleColor.copy(alpha = 0.5f),
-                            radius = 28.dp.toPx(),
-                            center = androidx.compose.ui.geometry.Offset(centerX, centerY),
-                            style = Stroke(width = 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f))
-                        )
-                    }
-                }
-
-                // Animated Active Scanline
+                // Animated Scanline
                 val currentScanY = top + (boxHeight * scanlineOffset)
                 drawLine(
-                    color = reticleColor.copy(alpha = 0.85f),
+                    color = IndigoPrimary.copy(alpha = 0.8f),
                     start = androidx.compose.ui.geometry.Offset(left, currentScanY),
                     end = androidx.compose.ui.geometry.Offset(left + boxWidth, currentScanY),
                     strokeWidth = 2.dp.toPx()
@@ -696,69 +569,13 @@ fun CameraXCaptureView(
                 }
             }
 
-            // Interactive Framing Mode Chips Bar (Barcode, Text/Brochure, Full Product)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .padding(top = 70.dp, start = 16.dp, end = 16.dp),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color.Black.copy(alpha = 0.75f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        CameraOverlayMode.values().forEach { mode ->
-                            val isSelected = selectedOverlayMode == mode
-                            val chipIcon = when (mode) {
-                                CameraOverlayMode.BARCODE -> Icons.Default.QrCodeScanner
-                                CameraOverlayMode.BROCHURE_TEXT -> Icons.Default.ReceiptLong
-                                CameraOverlayMode.FULL_PRODUCT -> Icons.Default.Inventory
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(if (isSelected) IndigoPrimary else Color.Transparent)
-                                    .clickable { selectedOverlayMode = mode }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(chipIcon, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                    Text(
-                                        text = mode.label,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = Color.White
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Live ML Status & Guidance Card
+            // Live ML Status Tag
             Card(
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isBarcodeDetected) Color(0xFF065F46).copy(alpha = 0.9f) else Color.Black.copy(alpha = 0.8f)
-                ),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    if (isBarcodeDetected) Color(0xFF10B981) else Color.White.copy(alpha = 0.2f)
-                ),
+                colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.75f)),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 120.dp, start = 20.dp, end = 20.dp)
+                    .padding(top = 70.dp)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -766,19 +583,14 @@ fun CameraXCaptureView(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = if (isBarcodeDetected) Icons.Default.CheckCircle else Icons.Default.AutoAwesome,
+                        Icons.Default.AutoAwesome,
                         contentDescription = null,
-                        tint = if (isBarcodeDetected) Color(0xFF34D399) else IndigoPrimary,
+                        tint = IndigoPrimary,
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
-                        text = if (isBarcodeDetected) {
-                            "✨ ¡Alineación Correcta! ${liveMLResult?.detectedLabel}"
-                        } else {
-                            selectedOverlayMode.hint
-                        },
+                        text = liveMLResult?.detectedLabel ?: "Encuadra el producto para captura ML",
                         style = MaterialTheme.typography.bodySmall,
-                        fontWeight = if (isBarcodeDetected) FontWeight.Bold else FontWeight.Normal,
                         color = Color.White
                     )
                 }
@@ -1701,7 +1513,6 @@ fun CameraXBarcodeScanView(
 
                 val analyzer = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
                     .build().also { imageAnalysis ->
                         imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
                             if (detectedBarcode == null && !isLoadingProduct) {

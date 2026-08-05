@@ -2,27 +2,27 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Modern Fresh Emerald & Mint Teal Theme Palette
-val IndigoPrimary = Color(0xFF0D9488) // Vibrant Teal Primary
-val IndigoSecondary = Color(0xFF14B8A6) // Soft Mint Teal
-val IndigoLight = Color(0xFFF0FDF4) // Light Sage Background Tint
-val IndigoContainer = Color(0xFFCCFBF1) // Soft Mint Container
+// Frosted Glass Theme Palette
+val IndigoPrimary = Color(0xFF4F46E5)
+val IndigoSecondary = Color(0xFF6366F1)
+val IndigoLight = Color(0xFFEEF2FF)
+val IndigoContainer = Color(0xFFE0E7FF)
 
 val AmberWarning = Color(0xFFF59E0B)
 val RedExpired = Color(0xFFEF4444)
-val BlueFridge = Color(0xFF0284C7)
+val BlueFridge = Color(0xFF3B82F6)
 val GreenFresh = Color(0xFF10B981)
 
-val LightBackground = Color(0xFFF4F7F6)
-val LightSurface = Color(0xFFAFAFA)
-val LightSurfaceVariant = Color(0xFFE6F0EE)
-val GlassBorder = Color(0x330D9488)
-val SlateTextPrimary = Color(0xFF0F2926)
-val SlateTextSecondary = Color(0xFF4A6B67)
+val LightBackground = Color(0xFFF3F4F9)
+val LightSurface = Color(0xDCFFFFFF) // Glass translucent white ~86%
+val LightSurfaceVariant = Color(0x80FFFFFF) // Extra translucent glass ~50%
+val GlassBorder = Color(0x66FFFFFF) // Light translucent white border
+val SlateTextPrimary = Color(0xFF1E293B)
+val SlateTextSecondary = Color(0xFF64748B)
 
-val DarkBackground = Color(0xFF0A1917)
-val DarkSurface = Color(0xCC132B28)
-val DarkSurfaceVariant = Color(0x801D3D39)
-val DarkGlassBorder = Color(0x3314B8A6)
+val DarkBackground = Color(0xFF0F172A)
+val DarkSurface = Color(0xCC1E293B) // Dark glass slate
+val DarkSurfaceVariant = Color(0x80334155)
+val DarkGlassBorder = Color(0x33FFFFFF)
 
 

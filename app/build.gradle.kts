@@ -6,7 +6,7 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
-  alias(libs.plugins.google.services)
+  alias(libs.plugins.google.services) // Activación limpia de Firebase mediante el alias correcto
 }
 
 android {
@@ -97,6 +97,7 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
+  implementation("com.google.firebase:firebase-analytics")
   // Uncomment to use Firestore:
   // implementation(libs.firebase.firestore)
 
@@ -115,6 +116,7 @@ dependencies {
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
+  implementation(libs.play.services.auth)
   implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)

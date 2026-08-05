@@ -42,9 +42,11 @@ fun ShoppingListScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    var itemPendingDelete by remember { mutableStateOf<ShoppingListItem?>(null) }
     val shoppingList by viewModel.shoppingList.collectAsState()
     val duplicateMessage by viewModel.duplicateMessage.collectAsState()
     val isAnalyzingImage by viewModel.isAnalyzingImage.collectAsState()
+    val scanErrorMessage by viewModel.scanErrorMessage.collectAsState()
     val scannedProducts by viewModel.scannedProducts.collectAsState()
     val isAlexaSyncing by viewModel.isAlexaSyncing.collectAsState()
     val alexaSyncResult by viewModel.alexaSyncResult.collectAsState()
@@ -53,6 +55,7 @@ fun ShoppingListScreen(
     val recipeActionMessage by viewModel.recipeActionMessage.collectAsState()
     val priceComparison by viewModel.priceComparison.collectAsState()
     val isComparingPrices by viewModel.isComparingPrices.collectAsState()
+    val priceComparisonError by viewModel.priceComparisonError.collectAsState()
     val productPriceHistory by viewModel.productPriceHistory.collectAsState()
     val isLoadingPriceHistory by viewModel.isLoadingPriceHistory.collectAsState()
 
@@ -465,7 +468,10 @@ fun ShoppingListScreen(
                                 historyInitialProduct = item.name
                                 showPriceHistoryDialog = true
                             },
-                            onDelete = { viewModel.deleteShoppingItem(item.id) }
+                            onQuantityChange = { newQuantity ->
+                                viewModel.updateShoppingItemQuantity(item.id, newQuantity)
+                            },
+                            onDelete = { itemPendingDelete = item }
                         )
                     }
                 }
@@ -639,6 +645,7 @@ fun ShoppingListScreen(
         ImageScanDialog(
             isAnalyzing = isAnalyzingImage,
             scannedResults = scannedProducts,
+            errorMessage = scanErrorMessage,
             onDismiss = {
                 viewModel.clearScannedProducts()
                 showScanDialog = false
@@ -688,14 +695,40 @@ fun ShoppingListScreen(
         )
     }
 
+    itemPendingDelete?.let { item ->
+        AlertDialog(
+            onDismissRequest = { itemPendingDelete = null },
+            title = { Text("¿Eliminar de la lista?") },
+            text = { Text("Se eliminará \"${item.name}\" de la lista de la compra. Esta acción no se puede deshacer.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteShoppingItem(item.id)
+                        itemPendingDelete = null
+                    },
+                    modifier = Modifier.testTag("confirm_delete_shopping_item_button")
+                ) {
+                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { itemPendingDelete = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
     if (showPriceComparisonDialog) {
         SupermarketPriceComparisonDialog(
             comparison = priceComparison,
             isLoading = isComparingPrices,
+            errorMessage = priceComparisonError,
             initialProductName = comparisonInitialProduct,
             onDismiss = {
                 showPriceComparisonDialog = false
                 viewModel.clearPriceComparison()
+                viewModel.clearPriceComparisonError()
             },
             onSearchProduct = { query ->
                 viewModel.comparePricesForProduct(query)
@@ -764,6 +797,14 @@ fun ShoppingListScreen(
     }
 }
 
+private fun formatQuantity(quantity: Double): String {
+    return if (quantity == quantity.toLong().toDouble()) {
+        quantity.toLong().toString()
+    } else {
+        String.format(Locale.US, "%.1f", quantity)
+    }
+}
+
 @Composable
 fun ShoppingListItemCard(
     item: ShoppingListItem,
@@ -771,6 +812,7 @@ fun ShoppingListItemCard(
     onToggleMissing: () -> Unit,
     onComparePrice: () -> Unit = {},
     onViewHistory: () -> Unit = {},
+    onQuantityChange: (Double) -> Unit = {},
     onDelete: () -> Unit
 ) {
     Card(
@@ -828,11 +870,34 @@ fun ShoppingListItemCard(
                         )
                     }
                 }
-                Text(
-                    text = "Cantidad: ${item.quantityToBuy} ${item.unit} | Supermercado: ${item.supermarket}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val step = if (item.unit.equals("ud", ignoreCase = true)) 1.0 else 0.5
+                    IconButton(
+                        onClick = { onQuantityChange(item.quantityToBuy - step) },
+                        modifier = Modifier.size(28.dp).testTag("decrease_quantity_${item.id}")
+                    ) {
+                        Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Reducir cantidad", tint = IndigoPrimary)
+                    }
+                    Text(
+                        text = "${formatQuantity(item.quantityToBuy)} ${item.unit}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    IconButton(
+                        onClick = { onQuantityChange(item.quantityToBuy + step) },
+                        modifier = Modifier.size(28.dp).testTag("increase_quantity_${item.id}")
+                    ) {
+                        Icon(Icons.Default.AddCircleOutline, contentDescription = "Aumentar cantidad", tint = IndigoPrimary)
+                    }
+                    Text(
+                        text = "| Supermercado: ${item.supermarket}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 if (item.estimatedPrice > 0) {
                     Text(
                         text = "Precio aprox: ${String.format(Locale.US, "%.2f", item.estimatedPrice * item.quantityToBuy)}€",

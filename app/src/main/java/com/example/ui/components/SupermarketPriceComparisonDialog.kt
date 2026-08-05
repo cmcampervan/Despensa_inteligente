@@ -30,6 +30,7 @@ import java.util.Locale
 fun SupermarketPriceComparisonDialog(
     comparison: ProductSupermarketComparison?,
     isLoading: Boolean,
+    errorMessage: String? = null,
     initialProductName: String = "",
     onDismiss: () -> Unit,
     onSearchProduct: (String) -> Unit,
@@ -162,6 +163,42 @@ fun SupermarketPriceComparisonDialog(
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+                        }
+                    } else if (errorMessage != null) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .border(1.dp, MaterialTheme.colorScheme.error, RoundedCornerShape(16.dp))
+                                .padding(20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.ErrorOutline,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(52.dp),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    errorMessage,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        if (searchQuery.isNotBlank()) onSearchProduct(searchQuery.trim())
+                                    },
+                                    modifier = Modifier.testTag("comparison_retry_button")
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Reintentar")
+                                }
                             }
                         }
                     } else if (comparison == null) {
