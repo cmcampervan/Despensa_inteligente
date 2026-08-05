@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import android.app.Activity
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -12,14 +16,47 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.IndigoPrimary
 import com.example.ui.viewmodel.PantryViewModel
+import com.example.util.DriveTokenResult
+import com.example.util.GoogleDriveAuthManager
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import kotlinx.coroutines.launch
 
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+private enum class DrivePendingAction { BACKUP, RESTORE }
+
+/**
+ * Pide un token OAuth fresco con permiso de Drive para [account] y ejecuta la acción
+ * pendiente. Si el permiso aún no está concedido, invoca [onNeedsConsent] con el intent
+ * de consentimiento en vez de fallar; si la obtención del token falla por completo, recurre
+ * al respaldo/restauración local (mismo comportamiento que sin cuenta configurada).
+ */
+private suspend fun performDriveActionWithAuth(
+    action: DrivePendingAction,
+    account: GoogleSignInAccount,
+    authManager: GoogleDriveAuthManager,
+    viewModel: PantryViewModel,
+    onNeedsConsent: (Intent) -> Unit
+) {
+    when (val tokenResult = authManager.fetchAccessToken(account)) {
+        is DriveTokenResult.Success -> when (action) {
+            DrivePendingAction.BACKUP -> viewModel.performGoogleDriveBackup(tokenResult.accessToken)
+            DrivePendingAction.RESTORE -> viewModel.restoreFromGoogleDriveBackup(tokenResult.accessToken)
+        }
+        is DriveTokenResult.RecoverableError -> onNeedsConsent(tokenResult.recoveryIntent)
+        is DriveTokenResult.Failure -> when (action) {
+            DrivePendingAction.BACKUP -> viewModel.performGoogleDriveBackup("")
+            DrivePendingAction.RESTORE -> viewModel.restoreFromGoogleDriveBackup("")
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,6 +80,60 @@ fun SettingsScreen(
 
     val isDriveBackingUp by viewModel.isDriveBackingUp.collectAsState()
     val driveBackupStatusMessage by viewModel.driveBackupStatusMessage.collectAsState()
+    val isRefreshingMercadonaCatalog by viewModel.isRefreshingMercadonaCatalog.collectAsState()
+    val mercadonaCatalogStatus by viewModel.mercadonaCatalogStatus.collectAsState()
+
+    // Inicio de sesión con Google para el respaldo en Drive
+    val context = LocalContext.current
+    val authManager = remember { GoogleDriveAuthManager(context) }
+    val coroutineScope = rememberCoroutineScope()
+
+    var googleAccount by remember { mutableStateOf(authManager.getLastSignedInAccount()) }
+    var pendingDriveAction by remember { mutableStateOf<DrivePendingAction?>(null) }
+
+    val consentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val action = pendingDriveAction
+        val account = googleAccount
+        pendingDriveAction = null
+        if (result.resultCode == Activity.RESULT_OK && action != null && account != null) {
+            coroutineScope.launch {
+                performDriveActionWithAuth(action, account, authManager, viewModel) { /* ya se acaba de conceder */ }
+            }
+        }
+    }
+
+    val signInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val account = authManager.extractAccountFromResult(result.data)
+        if (account != null) {
+            googleAccount = account
+            viewModel.updateSettings(settings.copy(driveAccountEmail = account.email ?: ""))
+            val action = pendingDriveAction
+            pendingDriveAction = null
+            if (action != null) {
+                coroutineScope.launch {
+                    performDriveActionWithAuth(action, account, authManager, viewModel) { intent ->
+                        pendingDriveAction = action
+                        consentLauncher.launch(intent)
+                    }
+                }
+            }
+        }
+    }
+
+    fun startDriveAction(action: DrivePendingAction) {
+        val account = googleAccount
+        if (account == null) {
+            pendingDriveAction = action
+            signInLauncher.launch(authManager.getSignInIntent())
+        } else {
+            coroutineScope.launch {
+                performDriveActionWithAuth(action, account, authManager, viewModel) { intent ->
+                    pendingDriveAction = action
+                    consentLauncher.launch(intent)
+                }
+            }
+        }
+    }
 
     val glassCardColors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.82f))
     val glassBorder = BorderStroke(1.dp, Color.White.copy(alpha = 0.9f))
@@ -516,6 +607,27 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(Icons.Default.AccountCircle, contentDescription = null, tint = IndigoPrimary, modifier = Modifier.size(18.dp))
+                        Text(
+                            text = googleAccount?.email ?: "Sin cuenta de Google conectada",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (googleAccount != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    TextButton(
+                        onClick = { signInLauncher.launch(authManager.getSignInIntent()) },
+                        modifier = Modifier.testTag("google_account_sign_in_button")
+                    ) {
+                        Text(if (googleAccount != null) "Cambiar cuenta" else "Iniciar sesión")
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text("Respaldo Automático de Datos", style = MaterialTheme.typography.bodyMedium)
                     Switch(
                         checked = isDriveAutoBackup,
@@ -546,7 +658,7 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = { viewModel.performGoogleDriveBackup() },
+                        onClick = { startDriveAction(DrivePendingAction.BACKUP) },
                         enabled = !isDriveBackingUp,
                         shape = RoundedCornerShape(18.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary),
@@ -563,7 +675,7 @@ fun SettingsScreen(
                     }
 
                     OutlinedButton(
-                        onClick = { viewModel.restoreFromGoogleDriveBackup() },
+                        onClick = { startDriveAction(DrivePendingAction.RESTORE) },
                         enabled = !isDriveBackingUp,
                         shape = RoundedCornerShape(18.dp),
                         modifier = Modifier.weight(1f).testTag("restore_google_drive_backup_button")
@@ -597,6 +709,72 @@ fun SettingsScreen(
                                 modifier = Modifier.weight(1f)
                             )
                             IconButton(onClick = { viewModel.clearDriveBackupStatusMessage() }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = IndigoPrimary, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Precios Reales de Mercadona
+        Card(
+            shape = glassShape,
+            colors = glassCardColors,
+            border = glassBorder,
+            modifier = Modifier.fillMaxWidth().testTag("mercadona_prices_card")
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.LocalOffer, contentDescription = null, tint = IndigoPrimary)
+                    Text("Precios Reales de Mercadona", style = MaterialTheme.typography.titleMedium)
+                }
+
+                Text(
+                    "Actualiza el precio guardado de cada producto de tu inventario con el precio real de Mercadona, en lugar de la estimación de la IA.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Button(
+                    onClick = { viewModel.refreshMercadonaCatalog() },
+                    enabled = !isRefreshingMercadonaCatalog,
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary),
+                    modifier = Modifier.fillMaxWidth().testTag("refresh_mercadona_catalog_button")
+                ) {
+                    if (isRefreshingMercadonaCatalog) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Actualizando precios...")
+                    } else {
+                        Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Actualizar Precios de Mercadona")
+                    }
+                }
+
+                mercadonaCatalogStatus?.let { msg ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = IndigoPrimary.copy(alpha = 0.1f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = msg,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = IndigoPrimary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = { viewModel.clearMercadonaCatalogStatus() }, modifier = Modifier.size(24.dp)) {
                                 Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = IndigoPrimary, modifier = Modifier.size(16.dp))
                             }
                         }

@@ -40,6 +40,7 @@ fun InventoryScreen(
     val selectedFoodCategory by viewModel.selectedFoodCategoryFilter.collectAsState()
     val selectedExpirationFilter by viewModel.selectedExpirationFilter.collectAsState()
     val isAnalyzingImage by viewModel.isAnalyzingImage.collectAsState()
+    val scanErrorMessage by viewModel.scanErrorMessage.collectAsState()
     val scannedProducts by viewModel.scannedProducts.collectAsState()
     val priceComparison by viewModel.priceComparison.collectAsState()
     val isComparingPrices by viewModel.isComparingPrices.collectAsState()
@@ -148,248 +149,235 @@ fun InventoryScreen(
         },
         modifier = modifier
     ) { innerPadding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(horizontal = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            item {
-                Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-                // Hero Banner with Stats & Expense Calculation
-                val lowStockCount = items.count { it.quantity <= it.minThreshold }
-                val totalPantryValue = items.sumOf { it.price * it.quantity }
-                HeroPantryBanner(
-                    totalItems = items.size,
-                    expiringCount = expiringItems.size,
-                    lowStockCount = lowStockCount,
-                    totalValue = totalPantryValue
-                )
-            }
+            // Hero Banner with Stats & Expense Calculation
+            val lowStockCount = items.count { it.quantity <= it.minThreshold }
+            val totalPantryValue = items.sumOf { it.price * it.quantity }
+            HeroPantryBanner(
+                totalItems = items.size,
+                expiringCount = expiringItems.size,
+                lowStockCount = lowStockCount,
+                totalValue = totalPantryValue
+            )
 
-            item {
-                // Resumen Visual de Frescura (Código de colores: Verde / Amarillo / Rojo)
-                FreshnessSummaryCard(
-                    items = rawItems,
-                    selectedFilter = selectedExpirationFilter,
-                    onSelectFilter = { filter -> viewModel.setExpirationFilter(filter) },
-                    onOpenDetail = { showFreshnessDetailDialog = true }
-                )
-            }
+            // Resumen Visual de Frescura (Código de colores: Verde / Amarillo / Rojo)
+            FreshnessSummaryCard(
+                items = rawItems,
+                selectedFilter = selectedExpirationFilter,
+                onSelectFilter = { filter -> viewModel.setExpirationFilter(filter) },
+                onOpenDetail = { showFreshnessDetailDialog = true }
+            )
 
-            item {
-                // Glass Search Bar
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.setSearchQuery(it) },
-                    placeholder = { Text("Buscar producto, marca o supermercado...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = com.example.ui.theme.IndigoPrimary) },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Limpiar")
-                            }
+            // Glass Search Bar
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.setSearchQuery(it) },
+                placeholder = { Text("Buscar producto, marca o supermercado...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = com.example.ui.theme.IndigoPrimary) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Limpiar")
                         }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(20.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedContainerColor = Color.White.copy(alpha = 0.75f),
-                        focusedContainerColor = Color.White.copy(alpha = 0.92f),
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.8f),
-                        focusedBorderColor = com.example.ui.theme.IndigoPrimary
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("inventory_search_input")
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(20.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedContainerColor = Color.White.copy(alpha = 0.75f),
+                    focusedContainerColor = Color.White.copy(alpha = 0.92f),
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.8f),
+                    focusedBorderColor = com.example.ui.theme.IndigoPrimary
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("inventory_search_input")
+            )
+
+            // Location Filters (TODOS, ALACENA, NEVERA)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = selectedLocation == "TODOS",
+                    onClick = { viewModel.setLocationFilter("TODOS") },
+                    label = { Text("Todos") },
+                    modifier = Modifier.weight(1f).testTag("filter_todos")
+                )
+                FilterChip(
+                    selected = selectedLocation == "ALACENA",
+                    onClick = { viewModel.setLocationFilter("ALACENA") },
+                    label = { Text("Alacena") },
+                    leadingIcon = { Icon(Icons.Default.Kitchen, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    modifier = Modifier.weight(1f).testTag("filter_alacena")
+                )
+                FilterChip(
+                    selected = selectedLocation == "NEVERA",
+                    onClick = { viewModel.setLocationFilter("NEVERA") },
+                    label = { Text("Nevera") },
+                    leadingIcon = { Icon(Icons.Default.AcUnit, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    modifier = Modifier.weight(1f).testTag("filter_nevera")
                 )
             }
 
-            item {
-                // Location Filters (TODOS, ALACENA, NEVERA)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+            // Food Categories Horizontal Chips
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(foodCategories) { cat ->
                     FilterChip(
-                        selected = selectedLocation == "TODOS",
-                        onClick = { viewModel.setLocationFilter("TODOS") },
-                        label = { Text("Todos") },
-                        modifier = Modifier.weight(1f).testTag("filter_todos")
-                    )
-                    FilterChip(
-                        selected = selectedLocation == "ALACENA",
-                        onClick = { viewModel.setLocationFilter("ALACENA") },
-                        label = { Text("Alacena") },
-                        leadingIcon = { Icon(Icons.Default.Kitchen, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                        modifier = Modifier.weight(1f).testTag("filter_alacena")
-                    )
-                    FilterChip(
-                        selected = selectedLocation == "NEVERA",
-                        onClick = { viewModel.setLocationFilter("NEVERA") },
-                        label = { Text("Nevera") },
-                        leadingIcon = { Icon(Icons.Default.AcUnit, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                        modifier = Modifier.weight(1f).testTag("filter_nevera")
+                        selected = selectedFoodCategory == cat,
+                        onClick = { viewModel.setFoodCategoryFilter(cat) },
+                        label = { Text(cat, style = MaterialTheme.typography.bodySmall) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = com.example.ui.theme.IndigoPrimary,
+                            selectedLabelColor = Color.White
+                        )
                     )
                 }
             }
 
-            item {
-                // Food Categories Horizontal Chips
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(foodCategories) { cat ->
-                        FilterChip(
-                            selected = selectedFoodCategory == cat,
-                            onClick = { viewModel.setFoodCategoryFilter(cat) },
-                            label = { Text(cat, style = MaterialTheme.typography.bodySmall) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = com.example.ui.theme.IndigoPrimary,
-                                selectedLabelColor = Color.White
-                            )
-                        )
-                    }
-                }
-            }
+            // Expiration Status Filters Horizontal Chips
+            val expirationFilters = listOf(
+                "TODOS" to "Todos",
+                "CADUCAN_3_DIAS" to "⚡ Caducan ≤ 3 días",
+                "CADUCAN_7_DIAS" to "⏱️ Caducan ≤ 7 días",
+                "CADUCAN_15_DIAS" to "📅 Caducan ≤ 15 días",
+                "CADUCADOS" to "🔴 Caducados",
+                "POR_CADUCAR" to "⚠️ Por Caducar",
+                "FRESCOS" to "🟢 En buen estado",
+                "SIN_STOCK" to "📦 Sin stock"
+            )
 
-            item {
-                // Expiration Status Filters Horizontal Chips
-                val expirationFilters = listOf(
-                    "TODOS" to "Todos",
-                    "CADUCAN_3_DIAS" to "⚡ Caducan ≤ 3 días",
-                    "CADUCAN_7_DIAS" to "⏱️ Caducan ≤ 7 días",
-                    "CADUCAN_15_DIAS" to "📅 Caducan ≤ 15 días",
-                    "CADUCADOS" to "🔴 Caducados",
-                    "POR_CADUCAR" to "⚠️ Por Caducar",
-                    "FRESCOS" to "🟢 En buen estado",
-                    "SIN_STOCK" to "📦 Sin stock"
-                )
-
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(expirationFilters) { (key, label) ->
-                        FilterChip(
-                            selected = selectedExpirationFilter == key,
-                            onClick = { viewModel.setExpirationFilter(key) },
-                            label = { Text(label, style = MaterialTheme.typography.bodySmall) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = when (key) {
-                                    "CADUCADOS", "SIN_STOCK" -> Color(0xFFDC2626)
-                                    "CADUCAN_3_DIAS" -> Color(0xFFE53935)
-                                    "CADUCAN_7_DIAS", "POR_CADUCAR" -> Color(0xFFD97706)
-                                    "CADUCAN_15_DIAS" -> Color(0xFF2563EB)
-                                    else -> com.example.ui.theme.IndigoPrimary
-                                },
-                                selectedLabelColor = Color.White
-                            ),
-                            modifier = Modifier.testTag("filter_expiration_$key")
-                        )
-                    }
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(expirationFilters) { (key, label) ->
+                    FilterChip(
+                        selected = selectedExpirationFilter == key,
+                        onClick = { viewModel.setExpirationFilter(key) },
+                        label = { Text(label, style = MaterialTheme.typography.bodySmall) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = when (key) {
+                                "CADUCADOS", "SIN_STOCK" -> Color(0xFFDC2626)
+                                "CADUCAN_3_DIAS" -> Color(0xFFE53935)
+                                "CADUCAN_7_DIAS", "POR_CADUCAR" -> Color(0xFFD97706)
+                                "CADUCAN_15_DIAS" -> Color(0xFF2563EB)
+                                else -> com.example.ui.theme.IndigoPrimary
+                            },
+                            selectedLabelColor = Color.White
+                        ),
+                        modifier = Modifier.testTag("filter_expiration_$key")
+                    )
                 }
             }
 
             val hasActiveFilters = searchQuery.isNotBlank() || selectedLocation != "TODOS" || selectedFoodCategory != "TODAS" || selectedExpirationFilter != "TODOS"
 
             if (hasActiveFilters) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Mostrando ${items.size} resultado(s)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(
+                        onClick = { viewModel.clearAllFilters() },
+                        modifier = Modifier.testTag("clear_all_filters_button")
                     ) {
-                        Text(
-                            text = "Mostrando ${items.size} resultado(s)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        TextButton(
-                            onClick = { viewModel.clearAllFilters() },
-                            modifier = Modifier.testTag("clear_all_filters_button")
-                        ) {
-                            Icon(Icons.Default.FilterAltOff, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Limpiar filtros", style = MaterialTheme.typography.bodySmall)
-                        }
+                        Icon(Icons.Default.FilterAltOff, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Limpiar filtros", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
 
             // Inventory List
             if (items.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 32.dp),
-                        contentAlignment = Alignment.Center
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Inventory,
-                                contentDescription = null,
-                                modifier = Modifier.size(56.dp),
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                            )
+                        Icon(
+                            Icons.Default.Inventory,
+                            contentDescription = null,
+                            modifier = Modifier.size(56.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        )
+                        Text(
+                            text = if (hasActiveFilters) "No se encontraron productos con estos filtros." else "No hay productos en la alacena.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (hasActiveFilters) {
+                            OutlinedButton(
+                                onClick = { viewModel.clearAllFilters() },
+                                modifier = Modifier.testTag("reset_filters_empty_button")
+                            ) {
+                                Text("Restablecer Filtros")
+                            }
+                        } else {
                             Text(
-                                text = if (hasActiveFilters) "No se encontraron productos con estos filtros." else "No hay productos en la alacena.",
-                                style = MaterialTheme.typography.bodyMedium,
+                                "Usa el botón '+' o escanea con la cámara para agregar.",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            if (hasActiveFilters) {
-                                OutlinedButton(
-                                    onClick = { viewModel.clearAllFilters() },
-                                    modifier = Modifier.testTag("reset_filters_empty_button")
-                                ) {
-                                    Text("Restablecer Filtros")
-                                }
-                            } else {
-                                Text(
-                                    "Usa el botón '+' o escanea con la cámara para agregar.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
                         }
                     }
                 }
             } else {
-                items(items, key = { it.id }) { item ->
-                    PantryItemCard(
-                        item = item,
-                        dateFormat = dateFormat,
-                        onEdit = {
-                            itemToEdit = item
-                            showAddEditDialog = true
-                        },
-                        onMarkMissing = {
-                            viewModel.markPantryItemAsMissing(item)
-                        },
-                        onComparePrice = {
-                            viewModel.comparePricesForProduct(item.name)
-                            comparisonInitialProduct = item.name
-                            showPriceComparisonDialog = true
-                        },
-                        onViewHistory = {
-                            viewModel.fetchPriceHistoryForProduct(item.name)
-                            historyInitialProduct = item.name
-                            showPriceHistoryDialog = true
-                        },
-                        onDelete = { viewModel.deletePantryItem(item) }
-                    )
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(items, key = { it.id }) { item ->
+                        PantryItemCard(
+                            item = item,
+                            dateFormat = dateFormat,
+                            onEdit = {
+                                itemToEdit = item
+                                showAddEditDialog = true
+                            },
+                            onMarkMissing = {
+                                viewModel.markPantryItemAsMissing(item)
+                            },
+                            onComparePrice = {
+                                viewModel.comparePricesForProduct(item.name)
+                                comparisonInitialProduct = item.name
+                                showPriceComparisonDialog = true
+                            },
+                            onViewHistory = {
+                                viewModel.fetchPriceHistoryForProduct(item.name)
+                                historyInitialProduct = item.name
+                                showPriceHistoryDialog = true
+                            },
+                            onDelete = { viewModel.deletePantryItem(item) }
+                        )
+                    }
                 }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(80.dp))
             }
         }
     }
@@ -555,6 +543,7 @@ fun InventoryScreen(
         ImageScanDialog(
             isAnalyzing = isAnalyzingImage,
             scannedResults = scannedProducts,
+            errorMessage = scanErrorMessage,
             onDismiss = {
                 viewModel.clearScannedProducts()
                 showScanDialog = false
@@ -730,7 +719,7 @@ fun PantryItemCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Supermercado: ${item.supermarket} | Precio: ${if (item.price > 0) String.format(Locale.US, "%.2f€", item.price) else "N/D"} | Caduca: ${dateFormat.format(Date(item.expirationDateMillis))}",
+                    text = "Supermercado: ${item.supermarket} | Caduca: ${dateFormat.format(Date(item.expirationDateMillis))}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

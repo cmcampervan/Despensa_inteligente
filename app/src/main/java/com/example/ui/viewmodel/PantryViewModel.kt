@@ -25,7 +25,9 @@ class PantryViewModel(application: Application) : AndroidViewModel(application) 
         pantryDao = db.pantryDao(),
         shoppingListDao = db.shoppingListDao(),
         purchaseHistoryDao = db.purchaseHistoryDao(),
-        appSettingsDao = db.appSettingsDao()
+        appSettingsDao = db.appSettingsDao(),
+        geminiCacheDao = db.geminiCacheDao(),
+        mercadonaCacheDao = db.mercadonaCacheDao()
     )
 
     // Alexa Sync State
@@ -149,6 +151,9 @@ class PantryViewModel(application: Application) : AndroidViewModel(application) 
     private val _isAnalyzingImage = MutableStateFlow(false)
     val isAnalyzingImage = _isAnalyzingImage.asStateFlow()
 
+    private val _scanErrorMessage = MutableStateFlow<String?>(null)
+    val scanErrorMessage = _scanErrorMessage.asStateFlow()
+
     // Duplicate Banner Notification State
     private val _duplicateMessage = MutableStateFlow<String?>(null)
     val duplicateMessage = _duplicateMessage.asStateFlow()
@@ -164,10 +169,16 @@ class PantryViewModel(application: Application) : AndroidViewModel(application) 
     private val _driveBackupStatusMessage = MutableStateFlow<String?>(null)
     val driveBackupStatusMessage = _driveBackupStatusMessage.asStateFlow()
 
+    // Precios reales de Mercadona (catálogo)
+    private val _isRefreshingMercadonaCatalog = MutableStateFlow(false)
+    val isRefreshingMercadonaCatalog = _isRefreshingMercadonaCatalog.asStateFlow()
+
+    private val _mercadonaCatalogStatus = MutableStateFlow<String?>(null)
+    val mercadonaCatalogStatus = _mercadonaCatalogStatus.asStateFlow()
+
     init {
         // Trigger initial check for notification alerts & proactive suggestions & zero stock sync
         viewModelScope.launch {
-            repository.seedDefaultPantryIfEmpty(getApplication())
             pantryItems.collect { items ->
                 // Auto sync any items with stock == 0 to shopping list as missing
                 repository.syncZeroStockAndMissingItemsToShoppingList()
@@ -259,6 +270,26 @@ class PantryViewModel(application: Application) : AndroidViewModel(application) 
         return repository.fetchOnlinePrice(productName, supermarket)
     }
 
+    /** Precio real de Mercadona (no estimado por IA) para un producto concreto. */
+    suspend fun getMercadonaPrice(productName: String, barcode: String? = null): com.example.data.remote.MercadonaProductPrice? {
+        return repository.getMercadonaPrice(productName, barcode)
+    }
+
+    /** Refresca los precios de todo el inventario contra los precios reales de Mercadona. */
+    fun refreshMercadonaCatalog() {
+        viewModelScope.launch {
+            _isRefreshingMercadonaCatalog.value = true
+            _mercadonaCatalogStatus.value = null
+            val result = repository.refreshMercadonaCatalog()
+            _isRefreshingMercadonaCatalog.value = false
+            _mercadonaCatalogStatus.value = result.message
+        }
+    }
+
+    fun clearMercadonaCatalogStatus() {
+        _mercadonaCatalogStatus.value = null
+    }
+
     fun comparePricesForProduct(productName: String) {
         viewModelScope.launch {
             _isComparingPrices.value = true
@@ -336,6 +367,12 @@ class PantryViewModel(application: Application) : AndroidViewModel(application) 
     fun toggleShoppingItemMissing(itemId: Int) {
         viewModelScope.launch {
             repository.toggleShoppingItemMissing(itemId)
+        }
+    }
+
+    fun updateShoppingItemQuantity(itemId: Int, newQuantity: Double) {
+        viewModelScope.launch {
+            repository.updateShoppingItemQuantity(itemId, newQuantity)
         }
     }
 
@@ -429,14 +466,25 @@ class PantryViewModel(application: Application) : AndroidViewModel(application) 
     fun analyzeImage(bitmap: Bitmap) {
         viewModelScope.launch {
             _isAnalyzingImage.value = true
-            val results = repository.analyzeImageWithGemini(bitmap)
-            _scannedProducts.value = results
-            _isAnalyzingImage.value = false
+            _scanErrorMessage.value = null
+            try {
+                val results = repository.analyzeImageWithGemini(bitmap)
+                _scannedProducts.value = results
+                if (results.isEmpty()) {
+                    _scanErrorMessage.value = "No se detectó ningún producto en la imagen. Prueba con otra foto o añádelo manualmente."
+                }
+            } catch (e: Exception) {
+                _scannedProducts.value = emptyList()
+                _scanErrorMessage.value = e.message ?: "No se pudo analizar la imagen. Inténtalo de nuevo."
+            } finally {
+                _isAnalyzingImage.value = false
+            }
         }
     }
 
     fun clearScannedProducts() {
         _scannedProducts.value = emptyList()
+        _scanErrorMessage.value = null
     }
 
     fun generateRecipes() {
@@ -573,7 +621,7 @@ class PantryViewModel(application: Application) : AndroidViewModel(application) 
                 .replace(Regex("(?i)(añadir|añade|agregar|agrega|comprar|compra|pon|pone|poner|meter|mete|guardar|guarda)"), "")
                 .replace(Regex("(?i)(a la alacena|en la alacena|a la nevera|en la nevera|a la despensa|en la despensa|a la lista de compras|a la lista de la compra|a la lista|de compras|en la lista)"), "")
                 .replace(Regex("(?i)(\\d+(?:[.,]\\d+)?|litros?|kilos?|kg|gramos?|g|paquetes?|paq|latas?|unidades?|ud|botes?|cajas?|cartones?|docenas?|l)"), "")
-                .replace(Regex("(?i)\\b(un|una|unos|unas|el|la|los|las)\\b"), "")
+                .replace(Regex("(?i)\\b(un|una|unos|unas|el|la|los|las|de)\\b"), "")
                 .trim()
                 .trim(',', '.', ':', ';')
 

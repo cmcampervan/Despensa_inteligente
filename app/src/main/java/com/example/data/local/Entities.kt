@@ -69,16 +69,3 @@ data class AppSettings(
     val driveAccountEmail: String = "",
     val monthlyBudget: Double = 0.0
 )
-
-@Entity(tableName = "productos")
-data class Producto(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val nombre: String,
-    val fechaCaducidad: Long = System.currentTimeMillis(),
-    val categoria: String = "Otros",
-    val supermercado: String = "General",
-    val precio: Double = 0.0,
-    val cantidad: Double = 1.0,
-    val unidad: String = "ud"
-)
-

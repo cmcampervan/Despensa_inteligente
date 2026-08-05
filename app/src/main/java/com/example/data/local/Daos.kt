@@ -116,25 +116,3 @@ interface AppSettingsDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveSettings(settings: AppSettings)
 }
-
-@Dao
-interface ProductoDao {
-    @Query("SELECT * FROM productos ORDER BY fechaCaducidad ASC")
-    fun getAllProductos(): Flow<List<Producto>>
-
-    @Query("SELECT * FROM productos WHERE id = :id")
-    suspend fun getProductoById(id: Int): Producto?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertProducto(producto: Producto): Long
-
-    @Update
-    suspend fun updateProducto(producto: Producto)
-
-    @Delete
-    suspend fun deleteProducto(producto: Producto)
-
-    @Query("DELETE FROM productos WHERE id = :id")
-    suspend fun deleteProductoById(id: Int)
-}
-

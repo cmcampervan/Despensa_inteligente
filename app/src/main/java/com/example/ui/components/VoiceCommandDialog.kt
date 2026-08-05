@@ -42,12 +42,9 @@ fun VoiceCommandDialog(
     }
 
     fun startSpeechRecognition() {
-        val localeTag = Locale.getDefault().toLanguageTag().ifBlank { "es" }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, localeTag)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, localeTag)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-ES")
             putExtra(RecognizerIntent.EXTRA_PROMPT, "Di tu comando para la despensa o lista de compras...")
         }
         try {

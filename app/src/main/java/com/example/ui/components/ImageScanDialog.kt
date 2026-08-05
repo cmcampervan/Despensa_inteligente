@@ -30,6 +30,7 @@ import com.example.data.remote.ScannedProduct
 fun ImageScanDialog(
     isAnalyzing: Boolean,
     scannedResults: List<ScannedProduct>,
+    errorMessage: String? = null,
     onDismiss: () -> Unit,
     onImageSelected: (Bitmap) -> Unit,
     onAddProductsToInventory: (List<ScannedProduct>) -> Unit,
@@ -127,47 +128,36 @@ fun ImageScanDialog(
                 }
 
                 selectedBitmap?.let { bmp ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Image(
-                                bitmap = bmp.asImageBitmap(),
-                                contentDescription = "Foto o folleto elegido",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(150.dp)
-                            )
-
-                            Button(
-                                onClick = { onImageSelected(bmp) },
-                                enabled = !isAnalyzing,
-                                colors = ButtonDefaults.buttonColors(containerColor = com.example.ui.theme.IndigoPrimary),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("send_image_gemini_button")
-                            ) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(if (isAnalyzing) "Analizando..." else "✨ Enviar y Analizar Foto / Folleto")
-                            }
-                        }
-                    }
+                    Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = "Foto elegida",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                    )
                 }
 
                 if (isAnalyzing) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(vertical = 8.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        Text("Analizando imagen o folleto con Gemini AI...", style = MaterialTheme.typography.bodySmall)
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        Text("Analizando imagen con Gemini AI...", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
+                errorMessage?.let { msg ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        modifier = Modifier.fillMaxWidth().testTag("scan_error_message")
+                    ) {
+                        Text(
+                            text = msg,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(10.dp)
+                        )
                     }
                 }
 

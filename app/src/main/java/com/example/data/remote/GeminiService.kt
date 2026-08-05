@@ -89,9 +89,7 @@ data class ScannedProduct(
     val estimatedPrice: Double,
     val isPromotion: Boolean,
     val supermarket: String,
-    val conservationTip: String,
-    val quantity: Double = 1.0,
-    val unit: String = "ud"
+    val conservationTip: String
 )
 
 data class RecipeSuggestion(
@@ -111,6 +109,9 @@ data class ProductLabelIngredientAnalysis(
     val nutritionalSummary: String = "",
     val confidence: Float = 0.9f
 )
+
+/** Error al llamar a Gemini AI (cuota agotada, sin conexión, respuesta inválida, etc.). */
+class GeminiRequestException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 class GeminiService {
 
@@ -201,17 +202,8 @@ class GeminiService {
     }
 
     private fun Bitmap.toBase64(): String {
-        val maxDim = 1280
-        val scaledBitmap = if (width > maxDim || height > maxDim) {
-            val scale = maxDim.toFloat() / Math.max(width, height)
-            val newW = (width * scale).toInt()
-            val newH = (height * scale).toInt()
-            Bitmap.createScaledBitmap(this, newW, newH, true)
-        } else {
-            this
-        }
         val outputStream = ByteArrayOutputStream()
-        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
+        compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
         return Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
     }
 
@@ -233,17 +225,17 @@ class GeminiService {
         }
 
         val prompt = """
-            Analiza detenidamente esta imagen de forma exhaustiva (puede ser una foto de un producto, un recibo/ticket de compra o un folleto/catálogo de ofertas de supermercado).
-            Extrae TODOS los productos alimenticios y ofertas visibles con su información relevante.
+            Analiza esta imagen (puede ser un producto, un recibo/ticket de compra o un folleto de supermercado).
+            Extrae todos los productos alimenticios visibles con su información relevante.
             Responde ÚNICAMENTE en formato JSON plano con esta estructura:
             [
               {
-                "name": "Nombre completo del producto",
+                "name": "Nombre del producto",
                 "category": "Alacena" o "Nevera",
                 "foodCategory": "Lácteos" / "Carnes y Pescados" / "Frutas y Verduras" / "Granos y Cereales" / "Bebidas" / "Enlatados" / "Snacks" / "Congelados" / "Otros",
                 "estimatedPrice": 2.50,
                 "isPromotion": true o false,
-                "supermarket": "Nombre del supermercado identificado (ej. Mercadona, Carrefour, Lidl, Dia, Alcampo) o 'General'",
+                "supermarket": "Nombre del supermercado si se identifica o 'General'",
                 "conservationTip": "Breve consejo de conservación"
               }
             ]
@@ -266,7 +258,11 @@ class GeminiService {
             parseScannedProductsJson(text)
         } catch (e: Exception) {
             e.printStackTrace()
-            emptyList()
+            throw GeminiRequestException(
+                "No se pudo analizar la imagen. Puede que se haya agotado la cuota de Gemini AI " +
+                    "o que no haya conexión. Inténtalo de nuevo en unos minutos o añade el producto manualmente.",
+                e
+            )
         }
     }
 
@@ -362,7 +358,15 @@ class GeminiService {
     suspend fun fetchOnlinePriceData(productName: String, supermarket: String = "Mercadona"): ScannedProduct = withContext(Dispatchers.IO) {
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
-            return@withContext SpanishMarketPriceDatabase.lookupRealPrice(productName, supermarket.ifBlank { "Mercadona" })
+            return@withContext ScannedProduct(
+                name = productName,
+                category = "Alacena",
+                foodCategory = "Otros",
+                estimatedPrice = 2.15,
+                isPromotion = false,
+                supermarket = supermarket.ifBlank { "Mercadona" },
+                conservationTip = "Conservar según fabricante."
+            )
         }
 
         val prompt = """
@@ -403,7 +407,15 @@ class GeminiService {
             )
         } catch (e: Exception) {
             e.printStackTrace()
-            SpanishMarketPriceDatabase.lookupRealPrice(productName, supermarket.ifBlank { "Mercadona" })
+            ScannedProduct(
+                name = productName,
+                category = "Alacena",
+                foodCategory = "Otros",
+                estimatedPrice = 2.0,
+                isPromotion = false,
+                supermarket = supermarket,
+                conservationTip = ""
+            )
         }
     }
 
@@ -419,7 +431,15 @@ class GeminiService {
 
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
-            return@withContext SpanishMarketPriceDatabase.lookupRealPrice(productNameOrBarcode, "Alcampo")
+            return@withContext ScannedProduct(
+                name = productNameOrBarcode,
+                category = if (productNameOrBarcode.contains("leche", true) || productNameOrBarcode.contains("queso", true)) "Nevera" else "Alacena",
+                foodCategory = "Otros",
+                estimatedPrice = 1.50,
+                isPromotion = false,
+                supermarket = "General",
+                conservationTip = "Guardar en un lugar fresco y seco."
+            )
         }
 
         val prompt = """
@@ -459,7 +479,15 @@ class GeminiService {
                 conservationTip = jsonObj.optString("conservationTip", "")
             )
         } catch (e: Exception) {
-            SpanishMarketPriceDatabase.lookupRealPrice(productNameOrBarcode, "Alcampo")
+            ScannedProduct(
+                name = productNameOrBarcode,
+                category = "Alacena",
+                foodCategory = "Otros",
+                estimatedPrice = 1.0,
+                isPromotion = false,
+                supermarket = "General",
+                conservationTip = "Almacenar en lugar fresco."
+            )
         }
     }
 
@@ -473,23 +501,17 @@ class GeminiService {
             val jsonArray = JSONArray(cleanStr)
             for (i in 0 until jsonArray.length()) {
                 val obj = jsonArray.getJSONObject(i)
-                    val parsedName = obj.optString("name", "Producto")
-                    val parsedSuper = obj.optString("supermarket", "General")
-                    val parsedPrice = obj.optDouble("estimatedPrice", 0.0)
-                    val realPrice = if (parsedPrice <= 0.1) {
-                        SpanishMarketPriceDatabase.lookupRealPrice(parsedName, parsedSuper).estimatedPrice
-                    } else parsedPrice
-                    resultList.add(
-                        ScannedProduct(
-                            name = parsedName,
-                            category = obj.optString("category", "Alacena"),
-                            foodCategory = obj.optString("foodCategory", "Otros"),
-                            estimatedPrice = realPrice,
-                            isPromotion = obj.optBoolean("isPromotion", false),
-                            supermarket = parsedSuper,
-                            conservationTip = obj.optString("conservationTip", "")
-                        )
+                resultList.add(
+                    ScannedProduct(
+                        name = obj.optString("name", "Producto"),
+                        category = obj.optString("category", "Alacena"),
+                        foodCategory = obj.optString("foodCategory", "Otros"),
+                        estimatedPrice = obj.optDouble("estimatedPrice", 0.0),
+                        isPromotion = obj.optBoolean("isPromotion", false),
+                        supermarket = obj.optString("supermarket", "General"),
+                        conservationTip = obj.optString("conservationTip", "")
                     )
+                )
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -688,78 +710,91 @@ class GeminiService {
     }
 
     private fun generateFallbackComparison(productName: String): ProductSupermarketComparison {
-        val baseRef = SpanishMarketPriceDatabase.lookupRealPrice(productName, "Mercadona")
-        val basePrice = baseRef.estimatedPrice
-        val foodCat = baseRef.foodCategory
-
-        val alcampoPrice = SpanishMarketPriceDatabase.lookupRealPrice(productName, "Alcampo").estimatedPrice
-        val lidlPrice = SpanishMarketPriceDatabase.lookupRealPrice(productName, "Lidl").estimatedPrice
-        val carrefourPrice = SpanishMarketPriceDatabase.lookupRealPrice(productName, "Carrefour").estimatedPrice
-        val diaPrice = SpanishMarketPriceDatabase.lookupRealPrice(productName, "Dia").estimatedPrice
+        val basePrice = when {
+            productName.contains("leche", ignoreCase = true) -> 0.98
+            productName.contains("aceite", ignoreCase = true) -> 6.50
+            productName.contains("arroz", ignoreCase = true) -> 1.35
+            productName.contains("pan", ignoreCase = true) -> 0.85
+            productName.contains("huevos", ignoreCase = true) -> 2.40
+            productName.contains("queso", ignoreCase = true) -> 2.80
+            productName.contains("pollo", ignoreCase = true) -> 4.50
+            productName.contains("manzana", ignoreCase = true) -> 1.95
+            productName.contains("atún", ignoreCase = true) -> 3.20
+            else -> 2.20
+        }
 
         val rawOffers = listOf(
             SupermarketOffer(
-                supermarket = "Alcampo",
-                regularPrice = alcampoPrice,
-                offerPrice = alcampoPrice,
-                offerDescription = "Precio bajo diario / Alcampo Online",
-                isPromotion = false,
-                unitPriceInfo = "${String.format(java.util.Locale.US, "%.2f", alcampoPrice)} €/ud",
-                validUntil = "Precio estable"
-            ),
-            SupermarketOffer(
                 supermarket = "Lidl",
                 regularPrice = basePrice * 1.05,
-                offerPrice = lidlPrice,
-                offerDescription = "Descuento Lidl Plus",
+                offerPrice = (basePrice * 0.85),
+                offerDescription = "Cupón Lidl Plus -15% Descuento",
                 isPromotion = true,
-                unitPriceInfo = "${String.format(java.util.Locale.US, "%.2f", lidlPrice)} €/ud",
-                validUntil = "Oferta semanal"
+                unitPriceInfo = "${String.format(java.util.Locale.US, "%.2f", basePrice * 0.85)} €/ud",
+                validUntil = "Hasta el domingo"
+            ),
+            SupermarketOffer(
+                supermarket = "Carrefour",
+                regularPrice = basePrice * 1.10,
+                offerPrice = (basePrice * 0.88),
+                offerDescription = "2ª unidad al 50% en la cesta",
+                isPromotion = true,
+                unitPriceInfo = "${String.format(java.util.Locale.US, "%.2f", basePrice * 0.88)} €/ud",
+                validUntil = "Promoción de la semana"
             ),
             SupermarketOffer(
                 supermarket = "Mercadona",
                 regularPrice = basePrice,
                 offerPrice = basePrice,
-                offerDescription = "Precio habitual Mercadona",
+                offerDescription = "Sin oferta (Precio habitual)",
                 isPromotion = false,
                 unitPriceInfo = "${String.format(java.util.Locale.US, "%.2f", basePrice)} €/ud",
                 validUntil = "Precio estable"
             ),
             SupermarketOffer(
-                supermarket = "Carrefour",
+                supermarket = "Dia",
                 regularPrice = basePrice * 1.08,
-                offerPrice = carrefourPrice,
-                offerDescription = "Oferta El Club Carrefour",
+                offerPrice = (basePrice * 0.90),
+                offerDescription = "Descuento Club Dia -10%",
                 isPromotion = true,
-                unitPriceInfo = "${String.format(java.util.Locale.US, "%.2f", carrefourPrice)} €/ud",
-                validUntil = "Promoción activa"
+                unitPriceInfo = "${String.format(java.util.Locale.US, "%.2f", basePrice * 0.90)} €/ud",
+                validUntil = "Activa hoy"
             ),
             SupermarketOffer(
-                supermarket = "Dia",
-                regularPrice = basePrice * 1.06,
-                offerPrice = diaPrice,
-                offerDescription = "Descuento Club Dia",
+                supermarket = "Alcampo",
+                regularPrice = basePrice * 0.95,
+                offerPrice = basePrice * 0.95,
+                offerDescription = "Precio bajo formato ahorro",
+                isPromotion = false,
+                unitPriceInfo = "${String.format(java.util.Locale.US, "%.2f", basePrice * 0.95)} €/ud",
+                validUntil = "Precio diario"
+            ),
+            SupermarketOffer(
+                supermarket = "Eroski",
+                regularPrice = basePrice * 1.12,
+                offerPrice = (basePrice * 0.92),
+                offerDescription = "Oferta Eroski Club 3x2",
                 isPromotion = true,
-                unitPriceInfo = "${String.format(java.util.Locale.US, "%.2f", diaPrice)} €/ud",
-                validUntil = "Activa hoy"
+                unitPriceInfo = "${String.format(java.util.Locale.US, "%.2f", basePrice * 0.92)} €/ud",
+                validUntil = "Hasta fin de catálogo"
             )
         )
 
         val minP = rawOffers.minOf { it.offerPrice }
         val maxP = rawOffers.maxOf { it.regularPrice }
         val bestSuper = rawOffers.first { it.offerPrice == minP }.supermarket
-        val savings = if (maxP > 0) (((maxP - minP) / maxP) * 100).toInt() else 10
+        val savings = (((maxP - minP) / maxP) * 100).toInt()
 
         val finalOffers = rawOffers.map { it.copy(isCheapest = (it.offerPrice == minP)) }
 
         return ProductSupermarketComparison(
             productName = productName.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() },
-            foodCategory = foodCat,
+            foodCategory = "General",
             offers = finalOffers,
             cheapestSupermarket = bestSuper,
             bestPrice = minP,
             maxSavingsPercentage = savings,
-            comparisonSummary = "El mejor precio para '$productName' está en $bestSuper (${String.format(java.util.Locale.US, "%.2f", minP)}€). Consulta también la opción de Alcampo Online (${String.format(java.util.Locale.US, "%.2f", alcampoPrice)}€)."
+            comparisonSummary = "El mejor precio con oferta está en $bestSuper (${String.format(java.util.Locale.US, "%.2f", minP)}€). Ahorra hasta un $savings% respecto a otros supermercados."
         )
     }
 
