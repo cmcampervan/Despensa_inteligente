@@ -25,8 +25,7 @@ class PantryViewModel(application: Application) : AndroidViewModel(application) 
         pantryDao = db.pantryDao(),
         shoppingListDao = db.shoppingListDao(),
         purchaseHistoryDao = db.purchaseHistoryDao(),
-        appSettingsDao = db.appSettingsDao(),
-        geminiCacheDao = db.geminiCacheDao()
+        appSettingsDao = db.appSettingsDao()
     )
 
     // Alexa Sync State
@@ -168,6 +167,7 @@ class PantryViewModel(application: Application) : AndroidViewModel(application) 
     init {
         // Trigger initial check for notification alerts & proactive suggestions & zero stock sync
         viewModelScope.launch {
+            repository.seedDefaultPantryIfEmpty(getApplication())
             pantryItems.collect { items ->
                 // Auto sync any items with stock == 0 to shopping list as missing
                 repository.syncZeroStockAndMissingItemsToShoppingList()
@@ -573,7 +573,7 @@ class PantryViewModel(application: Application) : AndroidViewModel(application) 
                 .replace(Regex("(?i)(añadir|añade|agregar|agrega|comprar|compra|pon|pone|poner|meter|mete|guardar|guarda)"), "")
                 .replace(Regex("(?i)(a la alacena|en la alacena|a la nevera|en la nevera|a la despensa|en la despensa|a la lista de compras|a la lista de la compra|a la lista|de compras|en la lista)"), "")
                 .replace(Regex("(?i)(\\d+(?:[.,]\\d+)?|litros?|kilos?|kg|gramos?|g|paquetes?|paq|latas?|unidades?|ud|botes?|cajas?|cartones?|docenas?|l)"), "")
-                .replace(Regex("(?i)\\b(un|una|unos|unas|el|la|los|las|de)\\b"), "")
+                .replace(Regex("(?i)\\b(un|una|unos|unas|el|la|los|las)\\b"), "")
                 .trim()
                 .trim(',', '.', ':', ';')
 

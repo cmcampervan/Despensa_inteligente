@@ -127,22 +127,47 @@ fun ImageScanDialog(
                 }
 
                 selectedBitmap?.let { bmp ->
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = "Foto elegida",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp)
-                    )
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Image(
+                                bitmap = bmp.asImageBitmap(),
+                                contentDescription = "Foto o folleto elegido",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(150.dp)
+                            )
+
+                            Button(
+                                onClick = { onImageSelected(bmp) },
+                                enabled = !isAnalyzing,
+                                colors = ButtonDefaults.buttonColors(containerColor = com.example.ui.theme.IndigoPrimary),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("send_image_gemini_button")
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (isAnalyzing) "Analizando..." else "✨ Enviar y Analizar Foto / Folleto")
+                            }
+                        }
+                    }
                 }
 
                 if (isAnalyzing) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(vertical = 8.dp)
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        Text("Analizando imagen con Gemini AI...", style = MaterialTheme.typography.bodySmall)
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Text("Analizando imagen o folleto con Gemini AI...", style = MaterialTheme.typography.bodySmall)
                     }
                 }
 

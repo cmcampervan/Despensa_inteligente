@@ -81,11 +81,13 @@ class OpenFoodFactsService {
                     val fullName = if (brand.isNotBlank() && !name.contains(brand, true)) "$name ($brand)" else name
                     val stores = p.stores?.split(",")?.firstOrNull()?.trim() ?: "Mercadona"
 
+                    val realPrice = SpanishMarketPriceDatabase.lookupRealPrice(fullName, stores).estimatedPrice
+
                     return@withContext ScannedProduct(
                         name = fullName,
                         category = if (p.categories?.contains("frigo", true) == true || p.categories?.contains("dairy", true) == true) "Nevera" else "Alacena",
                         foodCategory = determineCategoryFromOff(p.categories ?: ""),
-                        estimatedPrice = 1.95, // Fallback default price if missing
+                        estimatedPrice = realPrice,
                         isPromotion = false,
                         supermarket = if (stores.isBlank()) "Mercadona" else stores,
                         conservationTip = "Guardar según las instrucciones del fabricante."

@@ -87,6 +87,7 @@ class MLProductProcessor {
     private val barcodeScanner: BarcodeScanner by lazy {
         val options = BarcodeScannerOptions.Builder()
             .setBarcodeFormats(
+                Barcode.FORMAT_ALL_FORMATS,
                 Barcode.FORMAT_EAN_13,
                 Barcode.FORMAT_EAN_8,
                 Barcode.FORMAT_UPC_A,
@@ -119,8 +120,14 @@ class MLProductProcessor {
                         Barcode.FORMAT_EAN_13 -> "EAN-13"
                         Barcode.FORMAT_EAN_8 -> "EAN-8"
                         Barcode.FORMAT_UPC_A -> "UPC-A"
+                        Barcode.FORMAT_UPC_E -> "UPC-E"
                         Barcode.FORMAT_CODE_128 -> "CODE-128"
+                        Barcode.FORMAT_CODE_39 -> "CODE-39"
+                        Barcode.FORMAT_CODE_93 -> "CODE-93"
+                        Barcode.FORMAT_CODABAR -> "CODABAR"
+                        Barcode.FORMAT_ITF -> "ITF"
                         Barcode.FORMAT_QR_CODE -> "QR"
+                        Barcode.FORMAT_DATA_MATRIX -> "Data Matrix"
                         else -> "Código de Barras"
                     }
                     onResult(
@@ -431,6 +438,7 @@ fun CameraXCaptureView(
 
                     val analyzer = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
                         .build().also { imageAnalysis ->
                             imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
                                 mlProcessor.analyzeFrame(imageProxy) { result ->
@@ -1513,6 +1521,7 @@ fun CameraXBarcodeScanView(
 
                 val analyzer = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
                     .build().also { imageAnalysis ->
                         imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
                             if (detectedBarcode == null && !isLoadingProduct) {
