@@ -69,3 +69,4 @@ jobs:
         with:
           name: despensa-virtual-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          
