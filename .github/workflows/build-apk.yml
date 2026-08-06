@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configurar JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: "temurin"
           java-version: "17"
@@ -22,15 +22,26 @@ jobs:
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Generar debug.keystore (requerido por build.gradle.kts)
+      - name: Preparar debug.keystore (usa el del repo si ya existe, si no el secret, si no genera uno)
         run: |
-          keytool -genkeypair -v \
-            -keystore debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Debug,O=Despensa Virtual,C=ES"
+          echo "Estado del archivo debug.keystore tras el checkout:"
+          ls -la debug.keystore 2>&1 || echo "(no existe en el checkout)"
+          if [ -f debug.keystore ]; then
+            echo "Usando el debug.keystore ya presente en el repositorio (SHA-1 estable)."
+          elif [ -n "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" ]; then
+            echo "Restaurando debug.keystore fijo desde el secret (SHA-1 estable para Google Sign-In)."
+            echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
+          else
+            echo "No hay debug.keystore en el repo ni secret configurado: generando uno nuevo (SHA-1 distinto cada build)."
+            rm -f debug.keystore
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Debug,O=Despensa Virtual,C=ES"
+          fi
 
       - name: Mostrar huella SHA-1 del debug.keystore (para Google Cloud Console)
         run: |
@@ -45,21 +56,13 @@ jobs:
             | grep -A 1 "SHA1:"
 
       - name: Crear .env con la clave de Gemini
-        run: |
-          if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
-            echo "AVISO: el secreto GEMINI_API_KEY no está configurado o está vacío. Usando un valor de relleno (la app compilará pero las llamadas a Gemini no funcionarán en runtime)."
-            echo "GEMINI_API_KEY=PLACEHOLDER_KEY" > .env
-          else
-            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
-          fi
+        run: echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
 
-      - name: Compilar APK de debug (sin gradlew, usando Gradle directo)
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "9.3.1"
+      - name: Dar permisos de ejecución a gradlew
+        run: chmod +x ./gradlew
 
-      - name: Ejecutar assembleDebug
-        run: gradle assembleDebug --no-daemon
+      - name: Ejecutar assembleDebug (con el wrapper del proyecto, Gradle 9.3.1)
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: Subir APK como artifact descargable
         uses: actions/upload-artifact@v4
