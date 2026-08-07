@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:597104428642:android:f095b871d098558fd9733b",
+        "android_client_info": {
+          "package_name": "com.aistudio.despensavirtual.pantry"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8nXmC3Sm1XQOlBr7h8Qnk02qJY2mzuR0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:597104428642:android:ccd426e2a7e5ac46d9733b",
         "android_client_info": {
           "package_name": "despensa.lista.virtual7"
