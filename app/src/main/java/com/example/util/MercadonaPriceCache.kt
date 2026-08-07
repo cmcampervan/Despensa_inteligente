@@ -12,10 +12,10 @@ import java.util.concurrent.TimeUnit
  * refrescarlos con más frecuencia que, por ejemplo, una recomendación de receta de Gemini.
  */
 class MercadonaPriceCache(
-    private val dao: MercadonaCacheDao,
-    private val defaultTtlMillis: Long = TimeUnit.HOURS.toMillis(2),
+    @PublishedApi internal val dao: MercadonaCacheDao,
+    @PublishedApi internal val defaultTtlMillis: Long = TimeUnit.HOURS.toMillis(2),
 ) {
-    private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+    @PublishedApi internal val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
 
     suspend inline fun <reified T> getOrFetch(
         key: String,
