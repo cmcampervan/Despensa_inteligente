@@ -80,9 +80,12 @@ class GoogleDriveAuthManager(private val context: Context) {
             val token = GoogleAuthUtil.getToken(context, systemAccount, "oauth2:${DriveOAuthScopes.DRIVE_FILE}")
             DriveTokenResult.Success(token)
         } catch (e: UserRecoverableAuthException) {
-            // El usuario todavía no ha concedido el permiso de Drive explícitamente: hay que
-            // lanzar e.intent para mostrarle la pantalla de consentimiento.
-            DriveTokenResult.RecoverableError(e.intent)
+            val recoveryIntent = e.intent
+            if (recoveryIntent != null) {
+                DriveTokenResult.RecoverableError(recoveryIntent)
+            } else {
+                DriveTokenResult.Failure("Se requiere autorización de Drive, pero no se pudo abrir la pantalla de consentimiento.")
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             DriveTokenResult.Failure(e.localizedMessage ?: "No se pudo obtener el token de acceso a Drive.")
