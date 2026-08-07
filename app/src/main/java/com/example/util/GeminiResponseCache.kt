@@ -13,10 +13,10 @@ import java.util.concurrent.TimeUnit
  * resultado y lo devuelve.
  */
 class GeminiResponseCache(
-    private val dao: GeminiCacheDao,
-    private val defaultTtlMillis: Long = TimeUnit.HOURS.toMillis(12),
+    @PublishedApi internal val dao: GeminiCacheDao,
+    @PublishedApi internal val defaultTtlMillis: Long = TimeUnit.HOURS.toMillis(12),
 ) {
-    private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+    @PublishedApi internal val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
 
     suspend inline fun <reified T> getOrFetch(
         key: String,
