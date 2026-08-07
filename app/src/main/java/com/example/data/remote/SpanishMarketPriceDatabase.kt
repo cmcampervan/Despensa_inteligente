@@ -74,7 +74,6 @@ object SpanishMarketPriceDatabase {
             conservationTip = "Apto para exterior e interior.",
             supermarketPrices = mapOf("Alcampo" to 4.25, "Mercadona" to 4.80, "Carrefour" to 4.50, "Lidl" to 3.99, "Dia" to 4.60)
         ),
-
         // Lácteos & Huevos
         SpanishMarketItemReference(
             keywords = listOf("leche", "leche entera", "leche semidesnatada", "leche desnatada"),
@@ -126,7 +125,6 @@ object SpanishMarketPriceDatabase {
             conservationTip = "Guardar en un lugar fresco o en el frigorífico con el extremo punta abajo.",
             supermarketPrices = mapOf("Mercadona" to 2.35, "Alcampo" to 2.25, "Carrefour" to 2.45, "Lidl" to 2.19, "Dia" to 2.40)
         ),
-
         // Aceites y Condimentos
         SpanishMarketItemReference(
             keywords = listOf("aceite oliva", "aove", "aceite de oliva virgen", "aceite de oliva"),
@@ -168,7 +166,6 @@ object SpanishMarketPriceDatabase {
             conservationTip = "Almacenar en recipiente hermético y seco.",
             supermarketPrices = mapOf("Mercadona" to 1.35, "Alcampo" to 1.29, "Carrefour" to 1.40, "Lidl" to 1.25, "Dia" to 1.38)
         ),
-
         // Frutas y Verduras
         SpanishMarketItemReference(
             keywords = listOf("platano", "plátano", "bananas", "platanos de canarias"),
@@ -220,7 +217,6 @@ object SpanishMarketPriceDatabase {
             conservationTip = "Guardar separadas de las patatas en lugar seco y aireado.",
             supermarketPrices = mapOf("Mercadona" to 1.49, "Alcampo" to 1.39, "Carrefour" to 1.55, "Lidl" to 1.29, "Dia" to 1.50)
         ),
-
         // Carnes y Pescados
         SpanishMarketItemReference(
             keywords = listOf("pollo", "pechuga pollo", "pechugas", "muslo pollo"),
@@ -272,7 +268,6 @@ object SpanishMarketPriceDatabase {
             conservationTip = "Refrigerar y abrir el envase 10 minutos antes de consumir.",
             supermarketPrices = mapOf("Mercadona" to 2.45, "Alcampo" to 2.35, "Carrefour" to 2.60, "Lidl" to 2.19, "Dia" to 2.50)
         ),
-
         // Granos y Cereales
         SpanishMarketItemReference(
             keywords = listOf("arroz", "arroz redondo", "arroz basmati"),
@@ -304,7 +299,6 @@ object SpanishMarketPriceDatabase {
             conservationTip = "Conservar en envase hermético alejado de la humedad.",
             supermarketPrices = mapOf("Mercadona" to 2.15, "Alcampo" to 1.99, "Carrefour" to 2.25, "Lidl" to 1.89, "Dia" to 2.19)
         ),
-
         // Desayuno y Panadería
         SpanishMarketItemReference(
             keywords = listOf("pan", "pan molde", "pan de molde", "barra pan"),
@@ -336,7 +330,6 @@ object SpanishMarketPriceDatabase {
             conservationTip = "Guardar en caja de galletas o lata bien cerrada.",
             supermarketPrices = mapOf("Mercadona" to 1.55, "Alcampo" to 1.45, "Carrefour" to 1.65, "Lidl" to 1.39, "Dia" to 1.59)
         ),
-
         // Bebidas
         SpanishMarketItemReference(
             keywords = listOf("agua", "agua mineral", "garrafa agua", "agua 1.5l"),
@@ -368,7 +361,6 @@ object SpanishMarketPriceDatabase {
             conservationTip = "Almacenar en posición horizontal en lugar oscuro con temperatura estable.",
             supermarketPrices = mapOf("Mercadona" to 4.85, "Alcampo" to 4.65, "Carrefour" to 5.10, "Lidl" to 4.29, "Dia" to 4.95)
         ),
-
         // Limpieza e Hogar
         SpanishMarketItemReference(
             keywords = listOf("detergente", "detergente lavadora", "jabon lavadora"),
@@ -426,9 +418,7 @@ object SpanishMarketPriceDatabase {
                 estimatedPrice = roundToTwoDecimals(storePrice),
                 isPromotion = store.equals("Lidl", true) || store.equals("Alcampo", true),
                 supermarket = store,
-                conservationTip = matchedRef.conservationTip,
-                quantity = matchedRef.defaultQuantity,
-                unit = matchedRef.defaultUnit
+                conservationTip = matchedRef.conservationTip
             )
         }
 
@@ -443,16 +433,14 @@ object SpanishMarketPriceDatabase {
             estimatedPrice = roundToTwoDecimals(storePrice),
             isPromotion = false,
             supermarket = store,
-            conservationTip = tip,
-            quantity = 1.0,
-            unit = unit
+            conservationTip = tip
         )
     }
 
     private fun calculateStoreAdjustedPrice(basePrice: Double, store: String): Double {
         val multiplier = when (store.lowercase(Locale.ROOT)) {
             "alcampo" -> 0.95 // Alcampo is typically ~5% cheaper on average
-            "lidl" -> 0.92    // Lidl promotions and private label
+            "lidl" -> 0.92 // Lidl promotions and private label
             "mercadona" -> 1.00 // Standard baseline
             "carrefour" -> 1.04 // Carrefour standard store pricing
             "dia" -> 1.01
@@ -465,7 +453,7 @@ object SpanishMarketPriceDatabase {
         return when {
             // Jardín, Terraza, Plantas, Sustratos, Abonos
             lower.contains("sustrato") || lower.contains("abono") || lower.contains("fertiliz") ||
-            lower.contains("tierra") || lower.contains("planta") || lower.contains("jardin") || lower.contains("macet") -> {
+                lower.contains("tierra") || lower.contains("planta") || lower.contains("jardin") || lower.contains("macet") -> {
                 ProductClassification(
                     category = "Alacena",
                     foodCategory = "Otros",
@@ -476,7 +464,7 @@ object SpanishMarketPriceDatabase {
             }
             // Lácteos & Nevera
             lower.contains("leche") || lower.contains("queso") || lower.contains("yogur") ||
-            lower.contains("nata") || lower.contains("mantequilla") || lower.contains("kefir") -> {
+                lower.contains("nata") || lower.contains("mantequilla") || lower.contains("kefir") -> {
                 ProductClassification(
                     category = "Nevera",
                     foodCategory = "Lácteos",
@@ -487,7 +475,7 @@ object SpanishMarketPriceDatabase {
             }
             // Carnes, Aves, Embutidos
             lower.contains("carne") || lower.contains("pollo") || lower.contains("ternera") ||
-            lower.contains("cerdo") || lower.contains("jamon") || lower.contains("chorizo") || lower.contains("salchich") -> {
+                lower.contains("cerdo") || lower.contains("jamon") || lower.contains("chorizo") || lower.contains("salchich") -> {
                 ProductClassification(
                     category = "Nevera",
                     foodCategory = "Carnes y Pescados",
@@ -498,7 +486,7 @@ object SpanishMarketPriceDatabase {
             }
             // Pescados y Mariscos
             lower.contains("pesc") || lower.contains("salmon") || lower.contains("atun") ||
-            lower.contains("merluz") || lower.contains("gamba") || lower.contains("bacalao") -> {
+                lower.contains("merluz") || lower.contains("gamba") || lower.contains("bacalao") -> {
                 ProductClassification(
                     category = "Nevera",
                     foodCategory = "Carnes y Pescados",
@@ -509,8 +497,8 @@ object SpanishMarketPriceDatabase {
             }
             // Frutas y Verduras
             lower.contains("frut") || lower.contains("verdura") || lower.contains("platano") ||
-            lower.contains("manzana") || lower.contains("tomate") || lower.contains("patata") ||
-            lower.contains("cebolla") || lower.contains("ajo") || lower.contains("naranja") || lower.contains("lechuga") -> {
+                lower.contains("manzana") || lower.contains("tomate") || lower.contains("patata") ||
+                lower.contains("cebolla") || lower.contains("ajo") || lower.contains("naranja") || lower.contains("lechuga") -> {
                 ProductClassification(
                     category = "Alacena",
                     foodCategory = "Frutas y Verduras",
@@ -521,7 +509,7 @@ object SpanishMarketPriceDatabase {
             }
             // Bebidas y Refrescos
             lower.contains("agua") || lower.contains("refresc") || lower.contains("cervez") ||
-            lower.contains("vino") || lower.contains("zumo") || lower.contains("cola") -> {
+                lower.contains("vino") || lower.contains("zumo") || lower.contains("cola") -> {
                 ProductClassification(
                     category = "Alacena",
                     foodCategory = "Bebidas",
@@ -532,7 +520,7 @@ object SpanishMarketPriceDatabase {
             }
             // Limpieza e Higiene
             lower.contains("jabon") || lower.contains("detergent") || lower.contains("suavizant") ||
-            lower.contains("limpi") || lower.contains("champu") || lower.contains("papel") -> {
+                lower.contains("limpi") || lower.contains("champu") || lower.contains("papel") -> {
                 ProductClassification(
                     category = "Alacena",
                     foodCategory = "Otros",
